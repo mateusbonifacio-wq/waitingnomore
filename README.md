@@ -42,9 +42,19 @@ npm run dev
 
 ## Vercel Deployment (web only)
 
-- Import this GitHub repository in Vercel
-- Set Root Directory to `web`
-- Build command: `npm run build`
-- Output: default Next.js output
+The repository root also contains an unrelated `package.json` (Express backend). **If Vercel builds from the repo root without pointing at `web`, you will get a broken deploy or a `404 NOT_FOUND` page.**
+
+Do **one** of the following:
+
+### Option A (recommended)
+
+1. Import this GitHub repository in Vercel
+2. **Project → Settings → General → Root Directory** → set to **`web`**
+3. Save, then **Redeploy**
+4. Leave **Build Command** and **Output Directory** empty (defaults for Next.js)
+
+### Option B
+
+- Leave Root Directory as `.` (repository root). A root `vercel.json` is included so install/build run inside `web/`. Redeploy after pulling the latest `main`.
 
 This keeps the extension and web app simple, separated, and easy to maintain.
