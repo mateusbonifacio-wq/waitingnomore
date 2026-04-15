@@ -1,13 +1,39 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
-    <main style={{ maxWidth: 880, margin: "0 auto", padding: "48px 20px" }}>
-      <h1 style={{ marginTop: 0 }}>Idle-Time Dashboard</h1>
-      <p>
-        This `web` app is ready to deploy on Vercel. Next step: add dashboard views for extension session history.
-      </p>
-      <p>
-        The Chrome extension lives in the sibling <code>extension</code> folder.
-      </p>
+    <main className="page">
+      <section className="hero">
+        <span className="hero-badge">Chrome extension + web</span>
+        <h1>Turn AI waiting time into fast micro-interactions</h1>
+        <p className="hero-lead">
+          While ChatGPT generates, Waiting No More keeps you engaged with quick play, brain teasers, and focus prompts
+          — then summarizes each session so you can track momentum over time.
+        </p>
+        <div className="cta-row">
+          <Link href="/dashboard" className="btn btn-primary">
+            Open dashboard
+          </Link>
+          <Link href="/settings" className="btn btn-ghost">
+            Control panel
+          </Link>
+        </div>
+
+        <div className="feature-grid">
+          <div className="feature-card">
+            <h3>Automatic sessions</h3>
+            <p>The overlay appears when generation starts and wraps up with a short score summary when it ends.</p>
+          </div>
+          <div className="feature-card">
+            <h3>Fair scoring</h3>
+            <p>Hits per second normalizes performance across short and long replies.</p>
+          </div>
+          <div className="feature-card">
+            <h3>Built for later sync</h3>
+            <p>Local history today; connect this dashboard to your data when you are ready.</p>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
