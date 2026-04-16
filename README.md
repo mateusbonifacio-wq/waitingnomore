@@ -49,11 +49,11 @@ There is **no** `package.json` at the repository root — only inside `web/`. Ve
 
 1. Import this GitHub repository in Vercel.
 2. **Project → Settings → General → Root Directory** → set to **`web`** (not `.`).
-3. Under **Build & Development Settings**:
-   - **Framework Preset** → **Next.js** (or leave on *Auto* after pulling `web/vercel.json`).
+3. Under **Build & Development Settings** (Framework Settings):
+   - **Framework Preset** → choose **Next.js** explicitly. Do **not** leave it as **Other** — *Other* uses a static-style pipeline (and may look for a `public` output folder), which breaks this app and can show a **blank** site.
    - **Output Directory** → leave **empty** (do not set `public`). Next.js is built by Vercel’s Next builder; there is no static export output folder to point at.
    - Clear any **overrides** for Install Command and Build Command so defaults apply (`npm install`, `npm run build` inside `web/`).
-4. Save, then **Redeploy**.
+4. Click **Save**, then trigger a **new Production deployment** (Redeploy). If Vercel shows a warning that Production differs from Project Settings, saving here and redeploying clears that drift.
 
 ### If the build fails with `cd: web: No such file or directory`
 
