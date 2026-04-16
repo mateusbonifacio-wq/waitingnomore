@@ -11,9 +11,9 @@ Clean single-developer structure with a Chrome extension and a web app ready for
 │   ├── content.js
 │   └── styles.css
 └── web/         # Next.js app (deploy target: Vercel)
-    ├── app/
-    │   ├── layout.js
-    │   └── page.js
+    ├── app/          # routes: /, /dashboard, /settings
+    ├── components/
+    ├── lib/
     ├── next.config.mjs
     └── package.json
 ```
@@ -42,19 +42,23 @@ npm run dev
 
 ## Vercel Deployment (web only)
 
-The repository root also contains an unrelated `package.json` (Express backend). **If Vercel builds from the repo root without pointing at `web`, you will get a broken deploy or a `404 NOT_FOUND` page.**
+There is **no** `package.json` at the repository root — only inside `web/`. Vercel must treat **`web`** as the app root.
 
-Do **one** of the following:
+### Recommended setup
 
-### Option A (recommended)
+1. Import this GitHub repository in Vercel.
+2. **Project → Settings → General → Root Directory** → set to **`web`** (not `.`).
+3. Under **Build & Development Settings**, clear any **overrides** for Install Command and Build Command so Vercel uses the Next.js defaults (`npm install`, `npm run build` inside `web/`).
+4. Save, then **Redeploy**.
 
-1. Import this GitHub repository in Vercel
-2. **Project → Settings → General → Root Directory** → set to **`web`**
-3. Save, then **Redeploy**
-4. Leave **Build Command** and **Output Directory** empty (defaults for Next.js)
+### If the build fails with `cd: web: No such file or directory`
 
-### Option B
+That happens when **Root Directory is already `web`** but an old **Install Command** still runs `cd web && npm install` (from a previous root `vercel.json` or a manual override). With Root Directory `web`, the shell is already inside `web/`, so there is no nested `web/` folder.
 
-- Leave Root Directory as `.` (repository root). A root `vercel.json` is included so install/build run inside `web/`. Redeploy after pulling the latest `main`.
+**Fix:** set Root Directory to **`web`**, remove the `cd web` prefix from Install/Build overrides (leave them empty), and redeploy.
+
+### Optional: deploy from repo root (`.`)
+
+If you prefer Root Directory `.`, set **Install Command** to `npm install --prefix ./web` and **Build Command** to `npm run build --prefix ./web` in the Vercel project settings (do not use `cd web` unless the shell cwd is the repository root).
 
 This keeps the extension and web app simple, separated, and easy to maintain.
