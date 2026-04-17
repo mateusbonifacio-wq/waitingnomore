@@ -143,10 +143,11 @@ export default function SettingsForm() {
       </section>
 
       <p className="muted-note">
-        Saved here as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage (for the
-        dashboard only). The Chrome extension reads the <strong>same fields</strong> from{" "}
-        <strong>chrome.storage.local</strong> — open the extension&apos;s <strong>Options</strong> (or reload the
-        extension after saving there) so ChatGPT picks up intensity and trigger behaviour.
+        Saved as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage. With{" "}
+        <code>NEXT_PUBLIC_EXTENSION_ID</code> set to your extension ID (from chrome://extensions), changes also push
+        live to the extension — open ChatGPT and adjust intensity or trigger: the overlay should follow within a
+        second, no reload. If push fails, use the extension <strong>Options</strong> page or add your site origin to{" "}
+        <code>externally_connectable</code> in the extension manifest.
       </p>
     </>
   );

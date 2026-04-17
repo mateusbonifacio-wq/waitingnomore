@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.2";
+  const IDLE_EXTENSION_VERSION = "1.0.3";
 
   if (window.__chatgptIdleOverlayInjected) return;
   window.__chatgptIdleOverlayInjected = true;

@@ -1,15 +1,64 @@
 /**
  * Shared preference shape for the Waiting No More companion extension.
  *
- * - **Web app**: persists to `localStorage` (this origin only).
- * - **Extension**: reads/writes the same object under `chrome.storage.local`
- *   using `EXTENSION_SETTINGS_STORAGE_KEY` (see `extension/options.html`).
+ * - **Web app**: `localStorage` + optional live push to the extension.
+ * - **Extension**: `chrome.storage.local` + `background.js` external message handler.
  *
- * ChatGPT cannot see the website’s localStorage — use extension options (or
- * future sync) so the overlay actually receives updates. Field names stay stable.
+ * Live sync: set `NEXT_PUBLIC_EXTENSION_ID` (unpacked ID from chrome://extensions).
+ * The web app calls `chrome.runtime.sendMessage`; the extension manifest lists allowed
+ * origins under `externally_connectable`. `background.js` writes `chrome.storage.local`;
+ * the ChatGPT content script uses `chrome.storage.onChanged` (no tab reload).
  */
 
 export const EXTENSION_SETTINGS_STORAGE_KEY = "waitingnomore.extensionSettings.v1";
+
+const LIVE_SYNC_MESSAGE_TYPE = "wnm-settings-v1";
+
+function getExtensionIdForLiveSync() {
+  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_EXTENSION_ID) {
+    return String(process.env.NEXT_PUBLIC_EXTENSION_ID).trim();
+  }
+  return "";
+}
+
+/**
+ * Push full settings to the Chrome extension (updates open ChatGPT tabs via storage).
+ * @param {ExtensionSettingsV1} settings
+ */
+export function pushSettingsToExtension(settings) {
+  return new Promise((resolve) => {
+    const extensionId = getExtensionIdForLiveSync();
+    if (!extensionId) {
+      resolve({ ok: false, reason: "missing_NEXT_PUBLIC_EXTENSION_ID" });
+      return;
+    }
+    if (typeof window === "undefined") {
+      resolve({ ok: false, reason: "no_window" });
+      return;
+    }
+    const chromeApi = window.chrome;
+    if (!chromeApi?.runtime?.sendMessage) {
+      resolve({ ok: false, reason: "no_chrome_runtime" });
+      return;
+    }
+    try {
+      chromeApi.runtime.sendMessage(
+        extensionId,
+        { type: LIVE_SYNC_MESSAGE_TYPE, settings },
+        (response) => {
+          const last = chromeApi.runtime.lastError;
+          if (last) {
+            resolve({ ok: false, reason: last.message });
+            return;
+          }
+          resolve(response && typeof response === "object" ? response : { ok: true });
+        }
+      );
+    } catch (e) {
+      resolve({ ok: false, reason: String(e && e.message ? e.message : e) });
+    }
+  });
+}
 
 /** @typedef {"chill" | "normal" | "intense"} PlayIntensity */
 /** @typedef {"always" | "smart"} TriggerWhen */
@@ -73,5 +122,6 @@ export function loadExtensionSettings() {
 export function saveExtensionSettings(partial) {
   const next = coerceSettings({ ...loadExtensionSettings(), ...partial, schemaVersion: 1 });
   window.localStorage.setItem(EXTENSION_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  void pushSettingsToExtension(next);
   return next;
 }
