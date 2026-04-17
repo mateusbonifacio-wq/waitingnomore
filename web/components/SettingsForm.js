@@ -1,25 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  defaultExtensionSettings,
+  EXTENSION_SETTINGS_STORAGE_KEY,
+  loadExtensionSettings,
+  saveExtensionSettings
+} from "../lib/extensionSettings";
 
 export default function SettingsForm() {
-  const [extensionEnabled, setExtensionEnabled] = useState(true);
-  const [defaultMode, setDefaultMode] = useState("play");
-  const [showSummary, setShowSummary] = useState(true);
-  const [soundHints, setSoundHints] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [overlayWhileGenerating, setOverlayWhileGenerating] = useState(defaultExtensionSettings.overlayWhileGenerating);
+  const [defaultSessionMode, setDefaultSessionMode] = useState(defaultExtensionSettings.defaultSessionMode);
+  const [showSessionSummary, setShowSessionSummary] = useState(defaultExtensionSettings.showSessionSummary);
+  const [playIntensity, setPlayIntensity] = useState(defaultExtensionSettings.playIntensity);
+  const [triggerWhen, setTriggerWhen] = useState(defaultExtensionSettings.triggerWhen);
+
+  useEffect(() => {
+    const s = loadExtensionSettings();
+    setOverlayWhileGenerating(s.overlayWhileGenerating);
+    setDefaultSessionMode(s.defaultSessionMode);
+    setShowSessionSummary(s.showSessionSummary);
+    setPlayIntensity(s.playIntensity);
+    setTriggerWhen(s.triggerWhen);
+    setReady(true);
+  }, []);
+
+  function persist(partial) {
+    saveExtensionSettings(partial);
+  }
+
+  if (!ready) {
+    return <p className="muted-note">Loading preferences…</p>;
+  }
 
   return (
     <>
-      <section className="settings-section" aria-labelledby="settings-general">
-        <h2 id="settings-general">Extension</h2>
+      <section className="settings-section" aria-labelledby="settings-extension">
+        <h2 id="settings-extension">Extension</h2>
         <div className="setting-row">
-          <span className="setting-label">Enable overlay while ChatGPT generates</span>
+          <span className="setting-label">Overlay while ChatGPT generates</span>
           <button
             type="button"
             className="toggle"
-            aria-checked={extensionEnabled}
-            aria-label="Toggle extension"
-            onClick={() => setExtensionEnabled((v) => !v)}
+            aria-checked={overlayWhileGenerating}
+            aria-label="Overlay while ChatGPT generates"
+            onClick={() => {
+              const next = !overlayWhileGenerating;
+              setOverlayWhileGenerating(next);
+              persist({ overlayWhileGenerating: next });
+            }}
           />
         </div>
         <div className="setting-row">
@@ -27,9 +57,13 @@ export default function SettingsForm() {
           <div className="setting-control">
             <select
               className="input"
-              value={defaultMode}
-              onChange={(e) => setDefaultMode(e.target.value)}
-              aria-label="Default mode"
+              value={defaultSessionMode}
+              onChange={(e) => {
+                const v = e.target.value;
+                setDefaultSessionMode(v);
+                persist({ defaultSessionMode: v });
+              }}
+              aria-label="Default mode on session start"
             >
               <option value="play">Play</option>
               <option value="brain">Brain</option>
@@ -39,33 +73,80 @@ export default function SettingsForm() {
         </div>
       </section>
 
+      <section className="settings-section" aria-labelledby="settings-play">
+        <h2 id="settings-play">Play mode</h2>
+        <div className="setting-row setting-row--stack">
+          <div className="setting-label-block">
+            <span className="setting-label" id="label-intensity">
+              Intensity
+            </span>
+            <span className="setting-hint">Targets, visibility, and pace — calmer to sharper.</span>
+          </div>
+          <div className="setting-control">
+            <select
+              className="input"
+              value={playIntensity}
+              onChange={(e) => {
+                const v = e.target.value;
+                setPlayIntensity(v);
+                persist({ playIntensity: v });
+              }}
+              aria-labelledby="label-intensity"
+            >
+              <option value="chill">Chill — slower, less pressure</option>
+              <option value="normal">Normal — balanced</option>
+              <option value="intense">Intense — faster, more demanding</option>
+            </select>
+          </div>
+        </div>
+        <div className="setting-row setting-row--stack">
+          <div className="setting-label-block">
+            <span className="setting-label" id="label-trigger">
+              When to show overlay
+            </span>
+            <span className="setting-hint">Smart waits until a reply is taking a few seconds.</span>
+          </div>
+          <div className="setting-control">
+            <select
+              className="input"
+              value={triggerWhen}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTriggerWhen(v);
+                persist({ triggerWhen: v });
+              }}
+              aria-labelledby="label-trigger"
+            >
+              <option value="always">Always — every generation</option>
+              <option value="smart">Smart — longer replies only (~3s+)</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <section className="settings-section" aria-labelledby="settings-session">
         <h2 id="settings-session">Session</h2>
         <div className="setting-row">
-          <span className="setting-label">Show end-of-session summary</span>
+          <span className="setting-label">End-of-session summary</span>
           <button
             type="button"
             className="toggle"
-            aria-checked={showSummary}
-            aria-label="Toggle session summary"
-            onClick={() => setShowSummary((v) => !v)}
-          />
-        </div>
-        <div className="setting-row">
-          <span className="setting-label">Sound hints (future)</span>
-          <button
-            type="button"
-            className="toggle"
-            aria-checked={soundHints}
-            aria-label="Toggle sound hints"
-            onClick={() => setSoundHints((v) => !v)}
+            aria-checked={showSessionSummary}
+            aria-label="End-of-session summary"
+            onClick={() => {
+              const next = !showSessionSummary;
+              setShowSessionSummary(next);
+              persist({ showSessionSummary: next });
+            }}
           />
         </div>
       </section>
 
       <p className="muted-note">
-        These controls are local placeholders for the MVP. Sync with the extension and account preferences will ship
-        when the backend is connected.
+        Saved here as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage (for the
+        dashboard only). The Chrome extension reads the <strong>same fields</strong> from{" "}
+        <strong>chrome.storage.local</strong> — open the extension&apos;s <strong>Options</strong> (or reload the
+        extension after saving there) so ChatGPT picks up intensity and trigger behaviour.
       </p>
     </>
   );

@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Idle-Time Interaction MVP",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Shows an interactive overlay while ChatGPT is generating.",
   "permissions": ["storage"],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "content_scripts": [
     {
       "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
