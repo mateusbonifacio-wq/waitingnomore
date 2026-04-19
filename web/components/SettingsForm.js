@@ -15,6 +15,7 @@ export default function SettingsForm() {
   const [showSessionSummary, setShowSessionSummary] = useState(defaultExtensionSettings.showSessionSummary);
   const [playIntensity, setPlayIntensity] = useState(defaultExtensionSettings.playIntensity);
   const [triggerWhen, setTriggerWhen] = useState(defaultExtensionSettings.triggerWhen);
+  const [themeMode, setThemeMode] = useState(defaultExtensionSettings.themeMode);
 
   useEffect(() => {
     const s = loadExtensionSettings();
@@ -23,6 +24,7 @@ export default function SettingsForm() {
     setShowSessionSummary(s.showSessionSummary);
     setPlayIntensity(s.playIntensity);
     setTriggerWhen(s.triggerWhen);
+    setThemeMode(s.themeMode);
     setReady(true);
   }, []);
 
@@ -145,9 +147,11 @@ export default function SettingsForm() {
       <p className="muted-note">
         Saved as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage. With{" "}
         <code>NEXT_PUBLIC_EXTENSION_ID</code> set to your extension ID (from chrome://extensions), changes also push
-        live to the extension — open ChatGPT and adjust intensity or trigger: the overlay should follow within a
-        second, no reload. If push fails, use the extension <strong>Options</strong> page or add your site origin to{" "}
-        <code>externally_connectable</code> in the extension manifest.
+        live to the extension via <code>chrome.storage.local</code> — open ChatGPT and change theme, intensity, or
+        trigger: the overlay strip and colors should update within about a second, no tab reload. Default session mode
+        and summary toggle apply on the <strong>next</strong> generation session. If push fails, use the extension{" "}
+        <strong>Options</strong> page or add your site origin to <code>externally_connectable</code> in the extension
+        manifest.
       </p>
     </>
   );

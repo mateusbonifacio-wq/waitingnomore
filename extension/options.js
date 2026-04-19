@@ -7,7 +7,8 @@ const defaultUserPrefs = {
   showSessionSummary: true,
   playIntensity: "normal",
   triggerWhen: "always",
-  smartTriggerMinGenerationSec: 3
+  smartTriggerMinGenerationSec: 3,
+  themeMode: "dark"
 };
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
@@ -22,6 +23,7 @@ function coerceUserPrefs(raw) {
   if (MODE.has(raw.defaultSessionMode)) base.defaultSessionMode = raw.defaultSessionMode;
   if (INTENSITY.has(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (TRIGGER.has(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
+  if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   return base;
@@ -35,6 +37,7 @@ function formToObject() {
     showSessionSummary: document.getElementById("showSessionSummary").checked,
     playIntensity: document.getElementById("playIntensity").value,
     triggerWhen: document.getElementById("triggerWhen").value,
+    themeMode: document.getElementById("themeMode").value,
     smartTriggerMinGenerationSec: defaultUserPrefs.smartTriggerMinGenerationSec
   };
 }
@@ -45,6 +48,7 @@ function applyToForm(prefs) {
   document.getElementById("showSessionSummary").checked = prefs.showSessionSummary;
   document.getElementById("playIntensity").value = prefs.playIntensity;
   document.getElementById("triggerWhen").value = prefs.triggerWhen;
+  document.getElementById("themeMode").value = prefs.themeMode === "light" ? "light" : "dark";
 }
 
 async function load() {
@@ -64,7 +68,7 @@ document.getElementById("save").addEventListener("click", async () => {
   try {
     const next = coerceUserPrefs(formToObject());
     await chrome.storage.local.set({ [EXTENSION_SETTINGS_KEY]: next });
-    setStatus("Saved. Reload any open ChatGPT tabs to be sure the overlay picks changes up.");
+    setStatus("Saved. Open ChatGPT tabs pick this up via chrome.storage — no reload needed for theme and play prefs.");
   } catch (e) {
     setStatus(String(e && e.message ? e.message : e));
   } finally {

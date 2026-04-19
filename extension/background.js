@@ -12,7 +12,8 @@ const defaultUserPrefs = {
   showSessionSummary: true,
   playIntensity: "normal",
   triggerWhen: "always",
-  smartTriggerMinGenerationSec: 3
+  smartTriggerMinGenerationSec: 3,
+  themeMode: "dark"
 };
 
 function coerceUserPrefs(raw) {
@@ -23,6 +24,7 @@ function coerceUserPrefs(raw) {
   if (["play", "brain", "focus"].includes(raw.defaultSessionMode)) base.defaultSessionMode = raw.defaultSessionMode;
   if (["chill", "normal", "intense"].includes(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (["always", "smart"].includes(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
+  if (["light", "dark"].includes(raw.themeMode)) base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   return base;

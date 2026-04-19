@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.3";
+  const IDLE_EXTENSION_VERSION = "1.0.4";
 
   if (window.__chatgptIdleOverlayInjected) return;
   window.__chatgptIdleOverlayInjected = true;
@@ -26,7 +26,8 @@
     showSessionSummary: true,
     playIntensity: "normal",
     triggerWhen: "always",
-    smartTriggerMinGenerationSec: 3
+    smartTriggerMinGenerationSec: 3,
+    themeMode: "dark"
   };
   let userPrefs = { ...defaultUserPrefs };
   let rawGenerationSince = 0;
@@ -51,6 +52,29 @@
   let modeBody;
   let generationPollTimer = null;
   let summaryDismissAbort = null;
+  /** Monotonic id for each play target round (expire callback compares to playArmedRoundId). */
+  let playRoundSeq = 0;
+  /** While a target is spawned+active, matches that target's round id; null between rounds or after void. */
+  let playArmedRoundId = null;
+  let playActiveTargetEl = null;
+  const DEBUG_PLAY = false;
+
+  function debugPlay(...args) {
+    if (DEBUG_PLAY) console.log("[idle play]", ...args);
+  }
+
+  function voidPlayRound(reason) {
+    debugPlay("void", reason, { armed: playArmedRoundId });
+    if (playMoveTimer) {
+      clearTimeout(playMoveTimer);
+      playMoveTimer = null;
+    }
+    playArmedRoundId = null;
+    if (playActiveTargetEl && playActiveTargetEl.parentNode) {
+      playActiveTargetEl.remove();
+    }
+    playActiveTargetEl = null;
+  }
 
   const persistenceState = {
     sessions: [],
@@ -65,6 +89,9 @@
     hits: 0,
     playMisses: 0,
     reactionMsSamples: [],
+    brainAnswered: 0,
+    brainCorrect: 0,
+    focusPromptsCompleted: 0,
     events: [],
     bestHpsToday: 0,
     bestDayKey: "",
@@ -132,9 +159,26 @@
     if (["play", "brain", "focus"].includes(raw.defaultSessionMode)) base.defaultSessionMode = raw.defaultSessionMode;
     if (["chill", "normal", "intense"].includes(raw.playIntensity)) base.playIntensity = raw.playIntensity;
     if (["always", "smart"].includes(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
+    if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
     const sec = Number(raw.smartTriggerMinGenerationSec);
     if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
     return base;
+  }
+
+  function formatSettingsStrip() {
+    const theme = userPrefs.themeMode === "light" ? "Light" : "Dark";
+    const intensity =
+      userPrefs.playIntensity === "chill" ? "Chill" : userPrefs.playIntensity === "intense" ? "Intense" : "Normal";
+    const trigger = userPrefs.triggerWhen === "smart" ? "Smart" : "Always";
+    return `${theme} / ${intensity} / ${trigger}`;
+  }
+
+  function applyPrefsToOverlay() {
+    if (!root) return;
+    root.classList.toggle("idle-time-root--theme-light", userPrefs.themeMode === "light");
+    const strip = root.querySelector("[data-settings-strip]");
+    if (strip) strip.textContent = formatSettingsStrip();
+    syncGenerationOverlay();
   }
 
   async function refreshUserPrefs() {
@@ -216,11 +260,21 @@
 
   function createSessionRecord(summary, generationEndedSuccessfully) {
     const avgRt = summary.averageReactionMs;
+    const modeKey = summary.sessionMode || currentMode;
+    const metrics = {
+      normalizedScore: Number(summary.hitsPerSecond.toFixed(4)),
+      averageReactionMs: avgRt == null ? null : Number(avgRt.toFixed(1)),
+      totalMisses: Number(summary.misses) || 0,
+      brainAnswered: summary.brainAnswered ?? null,
+      brainCorrect: summary.brainCorrect ?? null,
+      accuracyPct: summary.accuracyPct != null ? Number(summary.accuracyPct.toFixed(1)) : null,
+      focusPromptsCompleted: summary.focusPromptsCompleted ?? null
+    };
     return {
       id: runtimeStats.currentSessionId,
       schemaVersion: 1,
       timestamp: new Date().toISOString(),
-      mode: currentMode,
+      mode: modeKey,
       totalHits: summary.hits,
       totalMisses: Number(summary.misses) || 0,
       durationSeconds: Number(summary.durationSec.toFixed(3)),
@@ -228,11 +282,7 @@
       averageReactionMs: avgRt == null ? null : Number(avgRt.toFixed(1)),
       generationStarted: true,
       generationEndedSuccessfully,
-      metrics: {
-        normalizedScore: Number(summary.hitsPerSecond.toFixed(4)),
-        averageReactionMs: avgRt == null ? null : Number(avgRt.toFixed(1)),
-        totalMisses: Number(summary.misses) || 0
-      }
+      metrics
     };
   }
 
@@ -257,6 +307,7 @@
       <div class="idle-time-card hidden" role="status" aria-live="polite">
         <span class="idle-time-version" aria-hidden="true">v${IDLE_EXTENSION_VERSION}</span>
         <div class="idle-time-header"><span class="idle-time-title">Idle-Time Interaction</span></div>
+        <p class="idle-time-settings-strip" data-settings-strip aria-live="polite" aria-label="Active extension settings for testing">${formatSettingsStrip()}</p>
         <div class="idle-time-tabs">
           <button class="idle-time-tab active" data-mode="play">Play Mode</button>
           <button class="idle-time-tab" data-mode="brain">Brain Mode</button>
@@ -287,20 +338,18 @@
   }
 
   function clearModeTimers() {
-    if (playMoveTimer) clearTimeout(playMoveTimer);
+    voidPlayRound("clearModeTimers");
     if (brainNextTimer) clearTimeout(brainNextTimer);
     if (summaryHideTimer) clearTimeout(summaryHideTimer);
     if (summaryExitTimer) clearTimeout(summaryExitTimer);
-    playMoveTimer = null;
     brainNextTimer = null;
     summaryHideTimer = null;
     summaryExitTimer = null;
   }
 
   function clearModeTimersKeepSummaryTimer() {
-    if (playMoveTimer) clearTimeout(playMoveTimer);
+    voidPlayRound("clearModeTimersKeepSummaryTimer");
     if (brainNextTimer) clearTimeout(brainNextTimer);
-    playMoveTimer = null;
     brainNextTimer = null;
   }
 
@@ -341,10 +390,21 @@
 
   function computeSummaryVisibleMs(summary) {
     const durationSec = Number(summary.durationSec) || 0;
+    const mode = summary.sessionMode || MODES.PLAY;
+    const fromDuration = Math.min(1100, Math.round(durationSec * 140));
+    if (mode === MODES.BRAIN) {
+      const n = Number(summary.brainAnswered) || 0;
+      const fromRounds = Math.min(900, n * 65);
+      return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromRounds + 300));
+    }
+    if (mode === MODES.FOCUS) {
+      const n = Number(summary.focusPromptsCompleted) || 0;
+      const fromRounds = Math.min(700, n * 80);
+      return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromRounds + 240));
+    }
     const hits = Number(summary.hits) || 0;
     const misses = Number(summary.misses) || 0;
     const hasAvg = summary.averageReactionMs != null && hits > 0;
-    const fromDuration = Math.min(1100, Math.round(durationSec * 140));
     const fromRounds = Math.min(900, hits * 55 + misses * 30);
     const readingTail = hasAvg ? 320 : 180;
     return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromRounds + readingTail));
@@ -415,8 +475,6 @@
     const elHits = modeBody.querySelector("[data-play-hits]");
     const elMiss = modeBody.querySelector("[data-play-miss]");
     const elAvg = modeBody.querySelector("[data-play-avg]");
-    let spawnSerial = 0;
-    let activeTarget = null;
 
     function updateHud() {
       elHits.textContent = String(runtimeStats.hits);
@@ -442,15 +500,6 @@
       return Math.max(36, Math.round(t.gapMin + Math.random() * t.gapSpread - Math.min(38, rounds * t.gapRamp)));
     }
 
-    function clearActiveRound() {
-      if (playMoveTimer) {
-        clearTimeout(playMoveTimer);
-        playMoveTimer = null;
-      }
-      if (activeTarget && activeTarget.parentNode) activeTarget.remove();
-      activeTarget = null;
-    }
-
     function showReactionPop(clientX, clientY, ms) {
       const rect = area.getBoundingClientRect();
       const pop = document.createElement("div");
@@ -464,66 +513,116 @@
       window.setTimeout(() => pop.remove(), 520);
     }
 
-    function spawn() {
-      clearActiveRound();
-      if (currentMode !== MODES.PLAY || !area.isConnected) return;
-      const serial = ++spawnSerial;
-      const target = document.createElement("button");
-      target.type = "button";
-      target.className = "play-target play-target--live";
-      target.setAttribute("aria-label", "Hit");
-      const size = 32;
-      const pad = 6;
-      const w = Math.max(8, area.clientWidth - size - pad * 2);
-      const h = Math.max(8, area.clientHeight - size - pad * 2);
-      const x = Math.floor(pad + Math.random() * w);
-      const y = Math.floor(pad + Math.random() * h);
-      target.style.left = `${x}px`;
-      target.style.top = `${y}px`;
-      const spawnAt = performance.now();
-      const windowMs = difficultyWindowMs();
-      area.appendChild(target);
-      activeTarget = target;
-
+    function scheduleSpawn(delayMs) {
+      if (playMoveTimer) {
+        clearTimeout(playMoveTimer);
+        playMoveTimer = null;
+      }
       playMoveTimer = window.setTimeout(() => {
-        if (serial !== spawnSerial) return;
-        if (!activeTarget || activeTarget !== target) return;
-        target.remove();
-        activeTarget = null;
-        runtimeStats.playMisses += 1;
-        trackEvent("play_miss", { totalMisses: runtimeStats.playMisses, totalHits: runtimeStats.hits });
-        updateHud();
-        playMoveTimer = window.setTimeout(spawn, nextGapMs());
-      }, windowMs);
+        playMoveTimer = null;
+        spawn();
+      }, delayMs);
+    }
 
-      target.addEventListener(
-        "click",
-        (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (serial !== spawnSerial || activeTarget !== target) return;
-          window.clearTimeout(playMoveTimer);
-          playMoveTimer = null;
-          const reactionMs = Math.round(performance.now() - spawnAt);
-          runtimeStats.reactionMsSamples.push(reactionMs);
-          runtimeStats.hits += 1;
-          trackEvent("play_hit", { totalHits: runtimeStats.hits, reactionMs });
-          target.classList.remove("play-target--live");
-          target.classList.add("play-target--hit");
-          showReactionPop(event.clientX, event.clientY, reactionMs);
-          activeTarget = null;
-          window.setTimeout(() => {
-            if (target.parentNode) target.remove();
-          }, 140);
-          updateHud();
-          playMoveTimer = window.setTimeout(spawn, nextGapMs());
-        },
-        { passive: false }
-      );
+    function spawn() {
+      if (currentMode !== MODES.PLAY || !area.isConnected) return;
+      if (!isGenerating) return;
+      if (card.classList.contains("hidden")) return;
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (currentMode !== MODES.PLAY || !area.isConnected) return;
+          if (!isGenerating) return;
+          if (card.classList.contains("hidden")) return;
+
+          voidPlayRound("spawnCommit");
+          const roundId = ++playRoundSeq;
+          playArmedRoundId = roundId;
+          debugPlay("spawn armed", { roundId });
+
+          const target = document.createElement("button");
+          target.type = "button";
+          target.className = "play-target play-target--live";
+          target.setAttribute("aria-label", "Hit");
+          const size = 32;
+          const pad = 6;
+          const w = Math.max(8, area.clientWidth - size - pad * 2);
+          const h = Math.max(8, area.clientHeight - size - pad * 2);
+          const x = Math.floor(pad + Math.random() * w);
+          const y = Math.floor(pad + Math.random() * h);
+          target.style.left = `${x}px`;
+          target.style.top = `${y}px`;
+          const spawnAt = performance.now();
+          const windowMs = difficultyWindowMs();
+          area.appendChild(target);
+          playActiveTargetEl = target;
+
+          playMoveTimer = window.setTimeout(() => {
+            playMoveTimer = null;
+            if (playArmedRoundId !== roundId) {
+              debugPlay("expire ignored (stale round)", { roundId, armed: playArmedRoundId });
+              return;
+            }
+            if (currentMode !== MODES.PLAY || !isGenerating || card.classList.contains("hidden")) {
+              debugPlay("expire ignored (session/context)", { roundId });
+              voidPlayRound("expireAbortContext");
+              return;
+            }
+            if (playActiveTargetEl !== target || !target.isConnected) {
+              debugPlay("expire ignored (no target)", { roundId });
+              voidPlayRound("expireAbortNoTarget");
+              if (currentMode === MODES.PLAY && isGenerating && !card.classList.contains("hidden")) {
+                scheduleSpawn(nextGapMs());
+              }
+              return;
+            }
+            playArmedRoundId = null;
+            playActiveTargetEl = null;
+            target.remove();
+            runtimeStats.playMisses += 1;
+            debugPlay("miss", { roundId, totalMisses: runtimeStats.playMisses });
+            trackEvent("play_miss", { totalMisses: runtimeStats.playMisses, totalHits: runtimeStats.hits });
+            updateHud();
+            scheduleSpawn(nextGapMs());
+          }, windowMs);
+
+          target.addEventListener(
+            "click",
+            (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (playMoveTimer) {
+                clearTimeout(playMoveTimer);
+                playMoveTimer = null;
+              }
+              if (playArmedRoundId !== roundId || playActiveTargetEl !== target) {
+                debugPlay("hit ignored (stale)", { roundId, armed: playArmedRoundId });
+                return;
+              }
+              playArmedRoundId = null;
+              playActiveTargetEl = null;
+              const reactionMs = Math.round(performance.now() - spawnAt);
+              runtimeStats.reactionMsSamples.push(reactionMs);
+              runtimeStats.hits += 1;
+              debugPlay("hit", { roundId, reactionMs, totalHits: runtimeStats.hits });
+              trackEvent("play_hit", { totalHits: runtimeStats.hits, reactionMs });
+              target.classList.remove("play-target--live");
+              target.classList.add("play-target--hit");
+              showReactionPop(event.clientX, event.clientY, reactionMs);
+              window.setTimeout(() => {
+                if (target.parentNode) target.remove();
+              }, 140);
+              updateHud();
+              scheduleSpawn(nextGapMs());
+            },
+            { passive: false }
+          );
+        });
+      });
     }
 
     updateHud();
-    playMoveTimer = window.setTimeout(spawn, getPlayTuning().spawnDelay);
+    scheduleSpawn(getPlayTuning().spawnDelay);
   }
 
   function renderBrainMode() {
@@ -537,6 +636,8 @@
       button.textContent = answer;
       button.addEventListener("click", () => {
         const isCorrect = index === item.correct;
+        runtimeStats.brainAnswered += 1;
+        if (isCorrect) runtimeStats.brainCorrect += 1;
         feedbackEl.textContent = isCorrect ? "Correct" : "Incorrect";
         feedbackEl.classList.toggle("correct", isCorrect);
         feedbackEl.classList.toggle("incorrect", !isCorrect);
@@ -554,6 +655,7 @@
   function renderFocusMode() {
     modeBody.innerHTML = `<div class="focus-prompt">${focusPrompts[focusIndex]}</div><button class="focus-next">Next Prompt</button>`;
     modeBody.querySelector(".focus-next").addEventListener("click", () => {
+      runtimeStats.focusPromptsCompleted += 1;
       focusIndex = (focusIndex + 1) % focusPrompts.length;
       trackEvent("focus_prompt_next", { focusIndex });
       renderFocusMode();
@@ -574,6 +676,9 @@
     runtimeStats.hits = 0;
     runtimeStats.playMisses = 0;
     runtimeStats.reactionMsSamples = [];
+    runtimeStats.brainAnswered = 0;
+    runtimeStats.brainCorrect = 0;
+    runtimeStats.focusPromptsCompleted = 0;
     runtimeStats.events = [];
     trackEvent("session_started", { mode: currentMode });
   }
@@ -583,26 +688,67 @@
     runtimeStats.sessionActive = false;
     const durationMs = Math.max(1, Date.now() - runtimeStats.sessionStartMs);
     const durationSec = durationMs / 1000;
-    const hitsPerSecond = runtimeStats.hits / durationSec;
-    runtimeStats.bestHpsToday = Math.max(runtimeStats.bestHpsToday, hitsPerSecond);
+    const modeKey = currentMode;
     const samples = runtimeStats.reactionMsSamples;
-    const averageReactionMs =
-      samples.length > 0 ? samples.reduce((a, b) => a + b, 0) / samples.length : null;
-    const summary = {
-      hits: runtimeStats.hits,
-      misses: runtimeStats.playMisses,
-      durationSec,
-      hitsPerSecond,
-      bestHpsToday: runtimeStats.bestHpsToday,
-      averageReactionMs
-    };
+    let summary;
+    if (modeKey === MODES.PLAY) {
+      const hitsPerSecond = runtimeStats.hits / durationSec;
+      runtimeStats.bestHpsToday = Math.max(runtimeStats.bestHpsToday, hitsPerSecond);
+      const averageReactionMs =
+        samples.length > 0 ? samples.reduce((a, b) => a + b, 0) / samples.length : null;
+      summary = {
+        sessionMode: MODES.PLAY,
+        hits: runtimeStats.hits,
+        misses: runtimeStats.playMisses,
+        durationSec,
+        hitsPerSecond,
+        bestHpsToday: runtimeStats.bestHpsToday,
+        averageReactionMs
+      };
+    } else if (modeKey === MODES.BRAIN) {
+      const answered = runtimeStats.brainAnswered;
+      const correct = runtimeStats.brainCorrect;
+      const wrong = Math.max(0, answered - correct);
+      const accuracyPct = answered > 0 ? (100 * correct) / answered : 0;
+      const hitsPerSecond = answered / durationSec;
+      summary = {
+        sessionMode: MODES.BRAIN,
+        durationSec,
+        brainAnswered: answered,
+        brainCorrect: correct,
+        accuracyPct,
+        hits: answered,
+        misses: wrong,
+        hitsPerSecond,
+        bestHpsToday: runtimeStats.bestHpsToday,
+        averageReactionMs: null
+      };
+    } else {
+      const n = runtimeStats.focusPromptsCompleted;
+      const hitsPerSecond = n / durationSec;
+      summary = {
+        sessionMode: MODES.FOCUS,
+        durationSec,
+        focusPromptsCompleted: n,
+        hits: n,
+        misses: 0,
+        hitsPerSecond,
+        bestHpsToday: runtimeStats.bestHpsToday,
+        averageReactionMs: null
+      };
+    }
     const sessionRecord = createSessionRecord(summary, generationEndedSuccessfully);
     trackEvent("session_ended", {
+      sessionMode: summary.sessionMode,
       hits: summary.hits,
       misses: summary.misses,
       durationMs,
-      hitsPerSecond,
+      hitsPerSecond: summary.hitsPerSecond,
       averageReactionMs: summary.averageReactionMs,
+      brainAnswered: summary.brainAnswered,
+      brainCorrect: summary.brainCorrect,
+      accuracyPct: summary.accuracyPct,
+      focusPromptsCompleted: summary.focusPromptsCompleted,
       generationEndedSuccessfully
     });
     void persistence.saveSession(sessionRecord);
@@ -619,18 +765,60 @@
     modeBody.style.opacity = "0";
     modeBody.style.transform = "translateY(6px) scale(0.98)";
     modeBody.style.transition = "none";
-    const hits = summary.hits;
-    const hps = summary.hitsPerSecond.toFixed(2);
-    const avgMs =
-      summary.averageReactionMs != null && summary.hits > 0 ? Math.round(summary.averageReactionMs) : null;
-    const avgHtml =
-      avgMs != null
-        ? `<span class="session-summary-line-emoji" aria-hidden="true">⚡</span><span class="session-summary-line-text">${avgMs}ms avg</span>`
-        : `<span class="session-summary-line-emoji" aria-hidden="true">⚡</span><span class="session-summary-line-text muted">—</span>`;
-    const hitsLabel = hits === 1 ? "hit" : "hits";
-    modeBody.innerHTML = `
+    const mode = summary.sessionMode || MODES.PLAY;
+    const durSec = Number(summary.durationSec) || 0;
+    const durLabel = durSec >= 60 ? `${Math.floor(durSec / 60)}m ${Math.round(durSec % 60)}s` : `${durSec.toFixed(1)}s`;
+
+    let inner;
+    if (mode === MODES.BRAIN) {
+      const answered = Number(summary.brainAnswered) || 0;
+      const correct = Number(summary.brainCorrect) || 0;
+      const acc = answered > 0 ? summary.accuracyPct.toFixed(0) : "—";
+      inner = `
+      <div class="session-summary session-summary--brain session-summary-panel" role="status" aria-label="Session results">
+        <div class="session-summary-kicker">Session complete · Brain</div>
+        <div class="session-summary-primary" aria-label="Accuracy">
+          <span class="session-summary-primary-emoji" aria-hidden="true">🧠</span>
+          <span class="session-summary-primary-value">${acc}</span>
+          <span class="session-summary-primary-unit">${answered > 0 ? "% correct" : "no answers yet"}</span>
+        </div>
+        <div class="session-summary-secondary">
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">✅</span><span class="session-summary-line-text">${correct} correct</span></div>
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">📝</span><span class="session-summary-line-text">${answered} answered</span></div>
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">⏱</span><span class="session-summary-line-text">${durLabel}</span></div>
+        </div>
+        <p class="session-summary-hint">Tap anywhere to close</p>
+      </div>`;
+    } else if (mode === MODES.FOCUS) {
+      const n = Number(summary.focusPromptsCompleted) || 0;
+      inner = `
+      <div class="session-summary session-summary--focus session-summary-panel" role="status" aria-label="Session results">
+        <div class="session-summary-kicker">Session complete · Focus</div>
+        <div class="session-summary-primary" aria-label="Prompts completed">
+          <span class="session-summary-primary-emoji" aria-hidden="true">🌿</span>
+          <span class="session-summary-primary-value">${n}</span>
+          <span class="session-summary-primary-unit">${n === 1 ? "prompt" : "prompts"}</span>
+        </div>
+        <div class="session-summary-secondary">
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">⏱</span><span class="session-summary-line-text">${durLabel} session</span></div>
+        </div>
+        <p class="session-summary-hint">Tap anywhere to close</p>
+      </div>`;
+    } else {
+      const hits = summary.hits;
+      const misses = Number(summary.misses) || 0;
+      const hps = summary.hitsPerSecond.toFixed(2);
+      const avgMs =
+        summary.averageReactionMs != null && hits > 0 ? Math.round(summary.averageReactionMs) : null;
+      const avgHtml =
+        avgMs != null
+          ? `<span class="session-summary-line-emoji" aria-hidden="true">⚡</span><span class="session-summary-line-text">${avgMs}ms avg</span>`
+          : `<span class="session-summary-line-emoji" aria-hidden="true">⚡</span><span class="session-summary-line-text muted">—</span>`;
+      const hitsLabel = hits === 1 ? "hit" : "hits";
+      const missLabel = misses === 1 ? "miss" : "misses";
+      inner = `
       <div class="session-summary session-summary--react session-summary-panel" role="status" aria-label="Session results">
-        <div class="session-summary-kicker">Session complete</div>
+        <div class="session-summary-kicker">Session complete · Play</div>
         <div class="session-summary-primary" aria-label="Hits per second">
           <span class="session-summary-primary-emoji" aria-hidden="true">🔥</span>
           <span class="session-summary-primary-value">${hps}</span>
@@ -639,10 +827,13 @@
         <div class="session-summary-secondary">
           <div class="session-summary-line">${avgHtml}</div>
           <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">🎯</span><span class="session-summary-line-text">${hits} ${hitsLabel}</span></div>
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">✖</span><span class="session-summary-line-text">${misses} ${missLabel}</span></div>
         </div>
         <p class="session-summary-hint">Tap anywhere to close</p>
-      </div>
-    `;
+      </div>`;
+    }
+
+    modeBody.innerHTML = inner;
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         if (!modeBody.isConnected) return;
@@ -836,13 +1027,14 @@
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== "local" || !changes[EXTENSION_SETTINGS_KEY]) return;
         userPrefs = coerceUserPrefs(changes[EXTENSION_SETTINGS_KEY].newValue);
-        syncGenerationOverlay();
+        applyPrefsToOverlay();
       });
     }
     await persistence.load();
     exposeInternalHistory();
     createTestBadge();
     createOverlay();
+    applyPrefsToOverlay();
     let resizeDebounce = null;
     window.addEventListener(
       "resize",

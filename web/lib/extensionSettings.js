@@ -7,7 +7,8 @@
  * Live sync: set `NEXT_PUBLIC_EXTENSION_ID` (unpacked ID from chrome://extensions).
  * The web app calls `chrome.runtime.sendMessage`; the extension manifest lists allowed
  * origins under `externally_connectable`. `background.js` writes `chrome.storage.local`;
- * the ChatGPT content script uses `chrome.storage.onChanged` (no tab reload).
+ * the ChatGPT content script uses `chrome.storage.onChanged` (no tab reload). Theme and
+ * the on-overlay settings strip update immediately; default mode / summary apply next session.
  */
 
 export const EXTENSION_SETTINGS_STORAGE_KEY = "waitingnomore.extensionSettings.v1";
@@ -63,6 +64,7 @@ export function pushSettingsToExtension(settings) {
 /** @typedef {"chill" | "normal" | "intense"} PlayIntensity */
 /** @typedef {"always" | "smart"} TriggerWhen */
 /** @typedef {"play" | "brain" | "focus"} SessionMode */
+/** @typedef {"light" | "dark"} ThemeMode */
 
 /**
  * @typedef {Object} ExtensionSettingsV1
@@ -73,6 +75,7 @@ export function pushSettingsToExtension(settings) {
  * @property {PlayIntensity} playIntensity
  * @property {TriggerWhen} triggerWhen
  * @property {number} smartTriggerMinGenerationSec
+ * @property {ThemeMode} themeMode
  */
 
 /** @type {ExtensionSettingsV1} */
@@ -83,12 +86,14 @@ export const defaultExtensionSettings = {
   showSessionSummary: true,
   playIntensity: "normal",
   triggerWhen: "always",
-  smartTriggerMinGenerationSec: 3
+  smartTriggerMinGenerationSec: 3,
+  themeMode: "dark"
 };
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
 const TRIGGER = new Set(["always", "smart"]);
 const MODE = new Set(["play", "brain", "focus"]);
+const THEME = new Set(["light", "dark"]);
 
 function coerceSettings(raw) {
   const base = { ...defaultExtensionSettings };
@@ -98,6 +103,7 @@ function coerceSettings(raw) {
   if (MODE.has(raw.defaultSessionMode)) base.defaultSessionMode = raw.defaultSessionMode;
   if (INTENSITY.has(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (TRIGGER.has(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
+  if (THEME.has(raw.themeMode)) base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   return base;
