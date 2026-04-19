@@ -28,6 +28,16 @@ export default function SettingsForm() {
     setReady(true);
   }, []);
 
+  useEffect(() => {
+    function onWnmTheme(e) {
+      if (e.detail?.themeMode === "light" || e.detail?.themeMode === "dark") {
+        setThemeMode(e.detail.themeMode);
+      }
+    }
+    window.addEventListener("wnm-theme-changed", onWnmTheme);
+    return () => window.removeEventListener("wnm-theme-changed", onWnmTheme);
+  }, []);
+
   function persist(partial) {
     saveExtensionSettings(partial);
   }
@@ -38,6 +48,28 @@ export default function SettingsForm() {
 
   return (
     <>
+      <section className="settings-section" aria-labelledby="settings-appearance">
+        <h2 id="settings-appearance">Appearance</h2>
+        <div className="setting-row">
+          <span className="setting-label">Theme</span>
+          <div className="setting-control">
+            <select
+              className="input"
+              value={themeMode}
+              onChange={(e) => {
+                const v = e.target.value;
+                setThemeMode(v);
+                persist({ themeMode: v });
+              }}
+              aria-label="Color theme"
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <section className="settings-section" aria-labelledby="settings-extension">
         <h2 id="settings-extension">Extension</h2>
         <div className="setting-row">

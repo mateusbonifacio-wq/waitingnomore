@@ -67,7 +67,7 @@ document.getElementById("save").addEventListener("click", async () => {
   btn.disabled = true;
   try {
     const next = coerceUserPrefs(formToObject());
-    await chrome.storage.local.set({ [EXTENSION_SETTINGS_KEY]: next });
+    await chrome.storage.local.set({ [EXTENSION_SETTINGS_KEY]: next, theme: next.themeMode });
     setStatus("Saved. Open ChatGPT tabs pick this up via chrome.storage — no reload needed for theme and play prefs.");
   } catch (e) {
     setStatus(String(e && e.message ? e.message : e));

@@ -14,7 +14,11 @@
 
 export const EXTENSION_SETTINGS_STORAGE_KEY = "waitingnomore.extensionSettings.v1";
 
+/** Must match extension `THEME_STORAGE_KEY` — written by background with full settings push. */
+export const THEME_STORAGE_KEY = "theme";
+
 const LIVE_SYNC_MESSAGE_TYPE = "wnm-settings-v1";
+const MESSAGE_GET_THEME = "wnm-get-theme-v1";
 
 function getExtensionIdForLiveSync() {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_EXTENSION_ID) {
@@ -27,6 +31,53 @@ function getExtensionIdForLiveSync() {
  * Push full settings to the Chrome extension (updates open ChatGPT tabs via storage).
  * @param {ExtensionSettingsV1} settings
  */
+/**
+ * Read canonical theme from the extension (chrome.storage.local.theme).
+ * @returns {Promise<{ ok: boolean, theme?: "light"|"dark", reason?: string }>}
+ */
+export function fetchThemeFromExtension() {
+  return new Promise((resolve) => {
+    const extensionId = getExtensionIdForLiveSync();
+    if (!extensionId) {
+      resolve({ ok: false, reason: "missing_NEXT_PUBLIC_EXTENSION_ID" });
+      return;
+    }
+    if (typeof window === "undefined") {
+      resolve({ ok: false, reason: "no_window" });
+      return;
+    }
+    const chromeApi = window.chrome;
+    if (!chromeApi?.runtime?.sendMessage) {
+      resolve({ ok: false, reason: "no_chrome_runtime" });
+      return;
+    }
+    try {
+      chromeApi.runtime.sendMessage(extensionId, { type: MESSAGE_GET_THEME }, (response) => {
+        const last = chromeApi.runtime.lastError;
+        if (last) {
+          resolve({ ok: false, reason: last.message });
+          return;
+        }
+        if (response && response.ok && (response.theme === "light" || response.theme === "dark")) {
+          resolve({ ok: true, theme: response.theme });
+          return;
+        }
+        resolve({ ok: false, reason: "bad_response" });
+      });
+    } catch (e) {
+      resolve({ ok: false, reason: String(e && e.message ? e.message : e) });
+    }
+  });
+}
+
+/** Apply theme to the document root (web app UI). */
+export function applyWebDocumentTheme(theme) {
+  if (typeof document === "undefined") return;
+  const t = theme === "light" || theme === "dark" ? theme : "dark";
+  document.documentElement.dataset.theme = t;
+  document.documentElement.style.colorScheme = t === "light" ? "light" : "dark";
+}
+
 export function pushSettingsToExtension(settings) {
   return new Promise((resolve) => {
     const extensionId = getExtensionIdForLiveSync();
@@ -129,12 +180,41 @@ export function loadExtensionSettings() {
 export function saveExtensionSettings(partial) {
   const next = coerceSettings({ ...loadExtensionSettings(), ...partial, schemaVersion: 1 });
   window.localStorage.setItem(EXTENSION_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  if (Object.prototype.hasOwnProperty.call(partial, "themeMode")) {
+    console.log("Theme set:", next.themeMode);
+  }
   console.log("[wnm settings] web wrote localStorage + push to extension", {
     defaultSessionMode: next.defaultSessionMode,
     playIntensity: next.playIntensity,
     triggerWhen: next.triggerWhen,
     themeMode: next.themeMode
   });
+  applyWebDocumentTheme(next.themeMode);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("wnm-theme-changed", { detail: { themeMode: next.themeMode } })
+    );
+  }
   void pushSettingsToExtension(next);
   return next;
+}
+
+/**
+ * On load: paint from localStorage immediately, then reconcile theme from extension storage (no extra push).
+ */
+export async function syncThemeFromExtensionOnLoad() {
+  if (typeof window === "undefined") return;
+  const local = loadExtensionSettings();
+  applyWebDocumentTheme(local.themeMode);
+  const r = await fetchThemeFromExtension();
+  if (r.ok && r.theme) {
+    applyWebDocumentTheme(r.theme);
+    if (local.themeMode !== r.theme) {
+      const next = coerceSettings({ ...local, themeMode: r.theme, schemaVersion: 1 });
+      window.localStorage.setItem(EXTENSION_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+    }
+    window.dispatchEvent(
+      new CustomEvent("wnm-theme-changed", { detail: { themeMode: r.theme } })
+    );
+  }
 }

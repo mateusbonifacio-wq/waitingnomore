@@ -1,6 +1,11 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.5";
+  const IDLE_EXTENSION_VERSION = "1.0.11";
+
+  // Context export feature is currently paused
+  // Reason: unreliable results and not part of core product
+  // Can be revisited later
+  // (code preserved under extension/experimental/contextExport/)
 
   if (window.__chatgptIdleOverlayInjected) return;
   window.__chatgptIdleOverlayInjected = true;
@@ -19,6 +24,7 @@
   };
 
   const EXTENSION_SETTINGS_KEY = "waitingnomore.extensionSettings.v1";
+  const THEME_STORAGE_KEY = "theme";
   const defaultUserPrefs = {
     schemaVersion: 1,
     overlayWhileGenerating: true,
@@ -52,9 +58,6 @@
   let modeBody;
   let generationPollTimer = null;
   let summaryDismissAbort = null;
-  let contextPinRoot = null;
-  let contextLastPdfBlob = null;
-  let contextLastPlainText = "";
   /** Monotonic id for each play target round (expire callback compares to playArmedRoundId). */
   let playRoundSeq = 0;
   /** While a target is spawned+active, matches that target's round id; null between rounds or after void. */
@@ -192,263 +195,42 @@
     setMode(target);
   }
 
+  function normalizeTheme(value) {
+    return value === "light" || value === "dark" ? value : null;
+  }
+
+  function applyTheme(theme) {
+    const t = normalizeTheme(theme);
+    if (!t) return;
+    userPrefs.themeMode = t;
+    console.log("Theme updated:", t);
+  }
+
   function applyPrefsToOverlay() {
     if (!root) return;
     root.classList.toggle("idle-time-root--theme-light", userPrefs.themeMode === "light");
     const strip = root.querySelector("[data-settings-strip]");
     if (strip) strip.textContent = formatSettingsStrip();
-    if (contextPinRoot) {
-      contextPinRoot.classList.toggle("idle-context-root--light", userPrefs.themeMode === "light");
-    }
     applyDefaultSessionModeFromPrefs();
     syncGenerationOverlay();
   }
 
   async function refreshUserPrefs() {
     if (!globalThis.chrome?.storage?.local) return;
-    const data = await chrome.storage.local.get(EXTENSION_SETTINGS_KEY);
+    const data = await chrome.storage.local.get([EXTENSION_SETTINGS_KEY, THEME_STORAGE_KEY]);
     userPrefs = coerceUserPrefs(data[EXTENSION_SETTINGS_KEY]);
+    const t = normalizeTheme(data[THEME_STORAGE_KEY]);
+    if (t) userPrefs.themeMode = t;
     if (DEBUG_SETTINGS_SYNC) {
       console.log("[wnm settings] content refreshUserPrefs applied", {
         defaultSessionMode: userPrefs.defaultSessionMode,
         playIntensity: userPrefs.playIntensity,
-        triggerWhen: userPrefs.triggerWhen
+        triggerWhen: userPrefs.triggerWhen,
+        themeMode: userPrefs.themeMode
       });
     }
   }
 
-  function extractChatTurnsFromPage() {
-    const turns = [];
-    const seen = new Set();
-    document.querySelectorAll("[data-message-author-role]").forEach((node) => {
-      if (seen.has(node)) return;
-      seen.add(node);
-      const role = (node.getAttribute("data-message-author-role") || "").toLowerCase();
-      if (role !== "user" && role !== "assistant" && role !== "system") return;
-      const article = node.closest("article") || node;
-      const text = (article.innerText || "").replace(/\s+/g, " ").trim();
-      if (text.length < 2) return;
-      turns.push({ role, text });
-    });
-    if (turns.length) return turns;
-    document.querySelectorAll('[data-testid="conversation-turn"]').forEach((el, i) => {
-      const text = (el.innerText || "").replace(/\s+/g, " ").trim();
-      if (text.length < 20) return;
-      turns.push({ role: i % 2 === 0 ? "user" : "assistant", text });
-    });
-    return turns;
-  }
-
-  function buildStructuredContext(turns) {
-    const userMsgs = turns.filter((t) => t.role === "user").map((t) => t.text);
-    const asstMsgs = turns.filter((t) => t.role === "assistant").map((t) => t.text);
-    const objective = userMsgs[0]
-      ? userMsgs[0].slice(0, 1200)
-      : "(No user message found in the visible conversation.)";
-    const lastAsst = asstMsgs.length ? asstMsgs[asstMsgs.length - 1] : "";
-    const lastUser = userMsgs.length ? userMsgs[userMsgs.length - 1] : "";
-    let keyBuf = "";
-    for (const m of asstMsgs.slice(-6)) {
-      const lines = m
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => /^\s*[-*•\d.]/.test(l) || (l.length < 220 && l.length > 8));
-      if (lines.length) keyBuf += lines.slice(0, 10).join("\n") + "\n";
-    }
-    if (!keyBuf.trim()) keyBuf = lastAsst ? lastAsst.slice(0, 2000) : "(No assistant content extracted.)";
-    const problems =
-      userMsgs
-        .filter((m) => /\?|problem|issue|error|bug|stuck|fail|blocked|cannot/i.test(m))
-        .slice(-4)
-        .join("\n\n") || "(None flagged heuristically from visible user messages.)";
-    const nextSteps =
-      lastUser && lastUser.length < 600
-        ? lastUser
-        : lastAsst
-          ? `Continue from the latest assistant reply (excerpt): ${lastAsst.slice(0, 500)}`
-          : "(Open a new chat and attach this PDF or paste the copied text.)";
-    return {
-      title: "Context from previous chat",
-      intro:
-        "This file contains context from a previous chat. Continue from the current state. (Structured summary is heuristic from visible page text.)",
-      objective,
-      keyDecisions: keyBuf.slice(0, 4500),
-      currentState: lastAsst.slice(0, 2500) || "(No assistant reply visible.)",
-      problems: problems.slice(0, 2000),
-      nextSteps: nextSteps.slice(0, 2000)
-    };
-  }
-
-  function buildContextPdfBlob(ctx) {
-    const jsPDF = globalThis.jspdf?.jsPDF;
-    if (typeof jsPDF !== "function") throw new Error("jsPDF not loaded");
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const margin = 44;
-    const pageH = doc.internal.pageSize.getHeight();
-    const pageW = doc.internal.pageSize.getWidth();
-    const maxW = pageW - margin * 2;
-    let y = margin;
-    const lineH = 13;
-    function ensureSpace(linesNeeded) {
-      if (y + linesNeeded * lineH > pageH - margin) {
-        doc.addPage();
-        y = margin;
-      }
-    }
-    function addParagraph(heading, body) {
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      ensureSpace(2);
-      doc.text(heading, margin, y);
-      y += lineH + 6;
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      const lines = doc.splitTextToSize(body || "", maxW);
-      for (let i = 0; i < lines.length; i++) {
-        ensureSpace(1);
-        doc.text(lines[i], margin, y);
-        y += lineH;
-      }
-      y += 12;
-    }
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text(ctx.title, margin, y);
-    y += 26;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    const introLines = doc.splitTextToSize(ctx.intro, maxW);
-    for (const line of introLines) {
-      ensureSpace(1);
-      doc.text(line, margin, y);
-      y += lineH;
-    }
-    y += 14;
-    addParagraph("Objective", ctx.objective);
-    addParagraph("Key decisions", ctx.keyDecisions);
-    addParagraph("Current state", ctx.currentState);
-    addParagraph("Problems", ctx.problems);
-    addParagraph("Next steps", ctx.nextSteps);
-    return doc.output("blob");
-  }
-
-  function plainTextFromContext(ctx) {
-    return [
-      ctx.title,
-      "",
-      ctx.intro,
-      "",
-      "Objective",
-      ctx.objective,
-      "",
-      "Key decisions",
-      ctx.keyDecisions,
-      "",
-      "Current state",
-      ctx.currentState,
-      "",
-      "Problems",
-      ctx.problems,
-      "",
-      "Next steps",
-      ctx.nextSteps
-    ].join("\n");
-  }
-
-  function createContextPin() {
-    contextPinRoot = document.createElement("div");
-    contextPinRoot.id = "idle-context-pin-root";
-    contextPinRoot.innerHTML = `
-      <button type="button" class="idle-context-pin-btn" aria-expanded="false" aria-label="Context export" title="Context export">◇</button>
-      <div class="idle-context-panel hidden" role="dialog" aria-label="Context export panel">
-        <div class="idle-context-panel-inner">
-          <div class="idle-context-panel-head">Context</div>
-          <button type="button" class="idle-context-analyze">Analyze context</button>
-          <div class="idle-context-status" aria-live="polite"></div>
-          <div class="idle-context-actions hidden">
-            <p class="idle-context-ready">Context ready</p>
-            <button type="button" class="idle-context-download">Download PDF</button>
-            <button type="button" class="idle-context-copy">Copy context</button>
-            <p class="idle-context-hint">Open a new chat and drag the file in, or paste copied text.</p>
-          </div>
-        </div>
-      </div>
-    `;
-    document.documentElement.appendChild(contextPinRoot);
-
-    const btn = contextPinRoot.querySelector(".idle-context-pin-btn");
-    const panel = contextPinRoot.querySelector(".idle-context-panel");
-    const statusEl = contextPinRoot.querySelector(".idle-context-status");
-    const actionsEl = contextPinRoot.querySelector(".idle-context-actions");
-    const analyzeBtn = contextPinRoot.querySelector(".idle-context-analyze");
-    const downloadBtn = contextPinRoot.querySelector(".idle-context-download");
-    const copyBtn = contextPinRoot.querySelector(".idle-context-copy");
-
-    function setPanelOpen(open) {
-      panel.classList.toggle("hidden", !open);
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-    }
-
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setPanelOpen(panel.classList.contains("hidden"));
-    });
-
-    document.addEventListener(
-      "click",
-      (e) => {
-        if (!contextPinRoot.contains(e.target)) setPanelOpen(false);
-      },
-      true
-    );
-
-    analyzeBtn.addEventListener("click", async () => {
-      statusEl.textContent = "Analyzing visible chat…";
-      actionsEl.classList.add("hidden");
-      contextLastPdfBlob = null;
-      contextLastPlainText = "";
-      try {
-        const turns = extractChatTurnsFromPage();
-        if (DEBUG_SETTINGS_SYNC) console.log("[wnm context] turns extracted", turns.length);
-        if (!turns.length) {
-          statusEl.textContent = "No conversation visible — scroll the chat into view and try again.";
-          return;
-        }
-        const ctx = buildStructuredContext(turns);
-        contextLastPlainText = plainTextFromContext(ctx);
-        contextLastPdfBlob = buildContextPdfBlob(ctx);
-        statusEl.textContent = "Summary ready.";
-        actionsEl.classList.remove("hidden");
-        trackEvent("context_analyze_done", { turns: turns.length });
-      } catch (err) {
-        statusEl.textContent = String(err && err.message ? err.message : err);
-        trackEvent("context_analyze_error", { message: String(err) });
-      }
-    });
-
-    downloadBtn.addEventListener("click", () => {
-      if (!contextLastPdfBlob) return;
-      const url = URL.createObjectURL(contextLastPdfBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `chat-context-${Date.now()}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      trackEvent("context_pdf_download", {});
-    });
-
-    copyBtn.addEventListener("click", async () => {
-      if (!contextLastPlainText) return;
-      try {
-        await navigator.clipboard.writeText(contextLastPlainText);
-        statusEl.textContent = "Copied to clipboard.";
-        trackEvent("context_copy", {});
-      } catch {
-        statusEl.textContent = "Copy failed — select text or download PDF.";
-      }
-    });
-  }
 
   function getPlayTuning() {
     const p = userPrefs.playIntensity;
@@ -1289,17 +1071,23 @@
     await refreshUserPrefs();
     if (globalThis.chrome?.storage?.onChanged) {
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== "local" || !changes[EXTENSION_SETTINGS_KEY]) return;
-        const ch = changes[EXTENSION_SETTINGS_KEY];
-        const oldVal = ch.oldValue ? coerceUserPrefs(ch.oldValue) : null;
-        userPrefs = coerceUserPrefs(ch.newValue);
-        if (DEBUG_SETTINGS_SYNC) {
-          console.log("[wnm settings] content storage.onChanged", {
-            previousDefaultMode: oldVal?.defaultSessionMode,
-            nextDefaultMode: userPrefs.defaultSessionMode,
-            previousIntensity: oldVal?.playIntensity,
-            nextIntensity: userPrefs.playIntensity
-          });
+        if (area !== "local") return;
+        if (!changes[EXTENSION_SETTINGS_KEY] && !changes[THEME_STORAGE_KEY]) return;
+        if (changes[EXTENSION_SETTINGS_KEY]) {
+          const ch = changes[EXTENSION_SETTINGS_KEY];
+          const oldVal = ch.oldValue ? coerceUserPrefs(ch.oldValue) : null;
+          userPrefs = coerceUserPrefs(ch.newValue);
+          if (DEBUG_SETTINGS_SYNC) {
+            console.log("[wnm settings] content storage.onChanged (settings)", {
+              previousDefaultMode: oldVal?.defaultSessionMode,
+              nextDefaultMode: userPrefs.defaultSessionMode,
+              previousIntensity: oldVal?.playIntensity,
+              nextIntensity: userPrefs.playIntensity
+            });
+          }
+        }
+        if (changes[THEME_STORAGE_KEY]) {
+          applyTheme(changes[THEME_STORAGE_KEY].newValue);
         }
         applyPrefsToOverlay();
       });
@@ -1308,7 +1096,6 @@
     exposeInternalHistory();
     createTestBadge();
     createOverlay();
-    createContextPin();
     applyPrefsToOverlay();
     let resizeDebounce = null;
     window.addEventListener(

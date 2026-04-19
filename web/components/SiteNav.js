@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "./ThemeToggle";
 
 const links = [
   { href: "/", label: "Home" },
@@ -13,13 +14,16 @@ export default function SiteNav() {
         <Link href="/" className="site-logo">
           Waiting No More
         </Link>
-        <nav className="site-nav" aria-label="Main">
-          {links.map(({ href, label }) => (
-            <Link key={href} href={href} className="site-nav-link">
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <div className="site-header-actions">
+          <nav className="site-nav" aria-label="Main">
+            {links.map(({ href, label }) => (
+              <Link key={href} href={href} className="site-nav-link">
+                {label}
+              </Link>
+            ))}
+          </nav>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
