@@ -38,6 +38,12 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     return false;
   }
   const merged = coerceUserPrefs(message.settings);
+  console.log("[wnm settings] background received external push → chrome.storage.local", {
+    defaultSessionMode: merged.defaultSessionMode,
+    playIntensity: merged.playIntensity,
+    triggerWhen: merged.triggerWhen,
+    themeMode: merged.themeMode
+  });
   chrome.storage.local.set({ [EXTENSION_SETTINGS_KEY]: merged }, () => {
     if (chrome.runtime.lastError) {
       sendResponse({ ok: false, error: chrome.runtime.lastError.message });

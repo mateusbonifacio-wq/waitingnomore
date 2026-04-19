@@ -7,8 +7,9 @@
  * Live sync: set `NEXT_PUBLIC_EXTENSION_ID` (unpacked ID from chrome://extensions).
  * The web app calls `chrome.runtime.sendMessage`; the extension manifest lists allowed
  * origins under `externally_connectable`. `background.js` writes `chrome.storage.local`;
- * the ChatGPT content script uses `chrome.storage.onChanged` (no tab reload). Theme and
- * the on-overlay settings strip update immediately; default mode / summary apply next session.
+ * the ChatGPT content script uses `chrome.storage.onChanged` (no tab reload). Theme, strip,
+ * and default session mode apply live while a generation session is active; summary toggle applies
+ * when the next session ends.
  */
 
 export const EXTENSION_SETTINGS_STORAGE_KEY = "waitingnomore.extensionSettings.v1";
@@ -128,6 +129,12 @@ export function loadExtensionSettings() {
 export function saveExtensionSettings(partial) {
   const next = coerceSettings({ ...loadExtensionSettings(), ...partial, schemaVersion: 1 });
   window.localStorage.setItem(EXTENSION_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  console.log("[wnm settings] web wrote localStorage + push to extension", {
+    defaultSessionMode: next.defaultSessionMode,
+    playIntensity: next.playIntensity,
+    triggerWhen: next.triggerWhen,
+    themeMode: next.themeMode
+  });
   void pushSettingsToExtension(next);
   return next;
 }
