@@ -29,17 +29,22 @@ export default function SettingsForm() {
   }, []);
 
   useEffect(() => {
-    function onWnmTheme(e) {
-      if (e.detail?.themeMode === "light" || e.detail?.themeMode === "dark") {
-        setThemeMode(e.detail.themeMode);
-      }
+    function onWnmSettings(e) {
+      const s = e.detail;
+      if (!s || typeof s !== "object") return;
+      if (typeof s.overlayWhileGenerating === "boolean") setOverlayWhileGenerating(s.overlayWhileGenerating);
+      if (s.defaultSessionMode) setDefaultSessionMode(s.defaultSessionMode);
+      if (typeof s.showSessionSummary === "boolean") setShowSessionSummary(s.showSessionSummary);
+      if (s.playIntensity) setPlayIntensity(s.playIntensity);
+      if (s.triggerWhen) setTriggerWhen(s.triggerWhen);
+      if (s.themeMode === "light" || s.themeMode === "dark") setThemeMode(s.themeMode);
     }
-    window.addEventListener("wnm-theme-changed", onWnmTheme);
-    return () => window.removeEventListener("wnm-theme-changed", onWnmTheme);
+    window.addEventListener("wnm-settings-changed", onWnmSettings);
+    return () => window.removeEventListener("wnm-settings-changed", onWnmSettings);
   }, []);
 
-  function persist(partial) {
-    saveExtensionSettings(partial);
+  async function persist(partial) {
+    await saveExtensionSettings(partial);
   }
 
   if (!ready) {

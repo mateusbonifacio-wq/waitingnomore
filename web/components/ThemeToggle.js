@@ -8,19 +8,20 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     setTheme(loadExtensionSettings().themeMode);
-    function onWnmTheme(e) {
-      if (e.detail?.themeMode === "light" || e.detail?.themeMode === "dark") {
-        setTheme(e.detail.themeMode);
+    function onWnmSettings(e) {
+      const d = e.detail;
+      if (d && (d.themeMode === "light" || d.themeMode === "dark")) {
+        setTheme(d.themeMode);
       }
     }
-    window.addEventListener("wnm-theme-changed", onWnmTheme);
-    return () => window.removeEventListener("wnm-theme-changed", onWnmTheme);
+    window.addEventListener("wnm-settings-changed", onWnmSettings);
+    return () => window.removeEventListener("wnm-settings-changed", onWnmSettings);
   }, []);
 
   function toggle() {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
-    saveExtensionSettings({ themeMode: next });
+    void saveExtensionSettings({ themeMode: next });
   }
 
   return (

@@ -37,9 +37,25 @@ function coerceUserPrefs(raw) {
 
 const MESSAGE_TYPE = "wnm-settings-v1";
 const MESSAGE_GET_THEME = "wnm-get-theme-v1";
+const MESSAGE_GET_SETTINGS = "wnm-get-settings-v1";
 
 /** Canonical theme key for live sync (web app + extension). */
 const THEME_STORAGE_KEY = "theme";
+
+function readMergedSettingsFromStorage(callback) {
+  chrome.storage.local.get([EXTENSION_SETTINGS_KEY, THEME_STORAGE_KEY], (result) => {
+    if (chrome.runtime.lastError) {
+      callback({ error: chrome.runtime.lastError.message });
+      return;
+    }
+    const prefs = coerceUserPrefs(result[EXTENSION_SETTINGS_KEY]);
+    const fromThemeKey = result[THEME_STORAGE_KEY];
+    if (fromThemeKey === "light" || fromThemeKey === "dark") {
+      prefs.themeMode = fromThemeKey;
+    }
+    callback({ prefs });
+  });
+}
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== "string") {
@@ -47,17 +63,24 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     return false;
   }
   if (message.type === MESSAGE_GET_THEME) {
-    chrome.storage.local.get([THEME_STORAGE_KEY, EXTENSION_SETTINGS_KEY], (result) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+    readMergedSettingsFromStorage((r) => {
+      if (r.error) {
+        sendResponse({ ok: false, error: r.error });
         return;
       }
-      const fromKey = result[THEME_STORAGE_KEY];
-      const theme =
-        fromKey === "light" || fromKey === "dark"
-          ? fromKey
-          : coerceUserPrefs(result[EXTENSION_SETTINGS_KEY]).themeMode;
-      sendResponse({ ok: true, theme });
+      console.log("[wnm sync] EXT background: read theme for web", r.prefs.themeMode);
+      sendResponse({ ok: true, theme: r.prefs.themeMode });
+    });
+    return true;
+  }
+  if (message.type === MESSAGE_GET_SETTINGS) {
+    readMergedSettingsFromStorage((r) => {
+      if (r.error) {
+        sendResponse({ ok: false, error: r.error });
+        return;
+      }
+      console.log("[wnm sync] EXT background: read full settings for web", r.prefs);
+      sendResponse({ ok: true, settings: r.prefs });
     });
     return true;
   }
@@ -65,13 +88,9 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     sendResponse({ ok: false, error: "unknown_type" });
     return false;
   }
+  console.log("[wnm sync] EXT background: incoming raw settings from web", message.settings);
   const merged = coerceUserPrefs(message.settings);
-  console.log("[wnm settings] background received external push → chrome.storage.local", {
-    defaultSessionMode: merged.defaultSessionMode,
-    playIntensity: merged.playIntensity,
-    triggerWhen: merged.triggerWhen,
-    themeMode: merged.themeMode
-  });
+  console.log("[wnm sync] EXT background: coerced → persisted", merged);
   chrome.storage.local.set(
     {
       [EXTENSION_SETTINGS_KEY]: merged,
@@ -79,9 +98,11 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     },
     () => {
       if (chrome.runtime.lastError) {
+        console.error("[wnm sync] EXT background: chrome.storage.local.set failed", chrome.runtime.lastError.message);
         sendResponse({ ok: false, error: chrome.runtime.lastError.message });
         return;
       }
+      console.log("[wnm sync] EXT background: chrome.storage.local write OK (settings + theme keys)");
       sendResponse({ ok: true });
     }
   );

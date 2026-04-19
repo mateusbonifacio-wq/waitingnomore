@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { syncThemeFromExtensionOnLoad } from "../lib/extensionSettings";
+import { syncSettingsFromExtensionOnLoad } from "../lib/extensionSettings";
 
-/** Applies saved + extension-synced theme on first client paint (no reload). */
+/** Pulls canonical settings from extension storage on first paint (no reload). */
 export default function ThemeBootstrap() {
   useEffect(() => {
-    void syncThemeFromExtensionOnLoad();
+    void syncSettingsFromExtensionOnLoad();
   }, []);
   return null;
 }

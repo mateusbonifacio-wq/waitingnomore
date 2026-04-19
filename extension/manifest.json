@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Idle-Time Interaction MVP",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Shows an interactive overlay while ChatGPT is generating.",
   "permissions": ["storage"],
   "background": {
@@ -9,6 +9,7 @@
   },
   "externally_connectable": {
     "matches": [
+      "http://localhost:3000/*",
       "http://localhost:*/*",
       "http://127.0.0.1:*/*",
       "https://*.vercel.app/*"

@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.11";
+  const IDLE_EXTENSION_VERSION = "1.0.12";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -66,6 +66,8 @@
   const DEBUG_PLAY = false;
   /** Set false to silence settings sync logs after validation. */
   const DEBUG_SETTINGS_SYNC = true;
+  /** Temporary: full-chain sync logging ([wnm sync] matches web + background). */
+  const WNM_SYNC_LOG = true;
 
   function debugPlay(...args) {
     if (DEBUG_PLAY) console.log("[idle play]", ...args);
@@ -190,7 +192,7 @@
     const target = defaultModeFromPrefs();
     if (currentMode === target) return;
     if (DEBUG_SETTINGS_SYNC) {
-      console.log("[wnm settings] content apply default session mode (live)", { to: target, was: currentMode });
+      console.log("[wnm sync] EXT content: apply default session mode (live)", { to: target, was: currentMode });
     }
     setMode(target);
   }
@@ -203,7 +205,20 @@
     const t = normalizeTheme(theme);
     if (!t) return;
     userPrefs.themeMode = t;
-    console.log("Theme updated:", t);
+    if (WNM_SYNC_LOG) console.log("[wnm sync] EXT content: theme key applied", t);
+  }
+
+  function logAppliedUserPrefs(reason) {
+    if (!WNM_SYNC_LOG) return;
+    console.log("[wnm sync] EXT content: settings applied (" + reason + ")", {
+      overlayWhileGenerating: userPrefs.overlayWhileGenerating,
+      defaultSessionMode: userPrefs.defaultSessionMode,
+      showSessionSummary: userPrefs.showSessionSummary,
+      playIntensity: userPrefs.playIntensity,
+      triggerWhen: userPrefs.triggerWhen,
+      smartTriggerMinGenerationSec: userPrefs.smartTriggerMinGenerationSec,
+      themeMode: userPrefs.themeMode
+    });
   }
 
   function applyPrefsToOverlay() {
@@ -221,14 +236,7 @@
     userPrefs = coerceUserPrefs(data[EXTENSION_SETTINGS_KEY]);
     const t = normalizeTheme(data[THEME_STORAGE_KEY]);
     if (t) userPrefs.themeMode = t;
-    if (DEBUG_SETTINGS_SYNC) {
-      console.log("[wnm settings] content refreshUserPrefs applied", {
-        defaultSessionMode: userPrefs.defaultSessionMode,
-        playIntensity: userPrefs.playIntensity,
-        triggerWhen: userPrefs.triggerWhen,
-        themeMode: userPrefs.themeMode
-      });
-    }
+    logAppliedUserPrefs("initial load from chrome.storage.local");
   }
 
 
@@ -1073,12 +1081,16 @@
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== "local") return;
         if (!changes[EXTENSION_SETTINGS_KEY] && !changes[THEME_STORAGE_KEY]) return;
+        const keys = Object.keys(changes);
+        if (WNM_SYNC_LOG) {
+          console.log("[wnm sync] EXT content: received chrome.storage.onChanged (from background)", { keys });
+        }
         if (changes[EXTENSION_SETTINGS_KEY]) {
           const ch = changes[EXTENSION_SETTINGS_KEY];
           const oldVal = ch.oldValue ? coerceUserPrefs(ch.oldValue) : null;
           userPrefs = coerceUserPrefs(ch.newValue);
-          if (DEBUG_SETTINGS_SYNC) {
-            console.log("[wnm settings] content storage.onChanged (settings)", {
+          if (DEBUG_SETTINGS_SYNC && WNM_SYNC_LOG) {
+            console.log("[wnm sync] EXT content: parsed settings blob (diff)", {
               previousDefaultMode: oldVal?.defaultSessionMode,
               nextDefaultMode: userPrefs.defaultSessionMode,
               previousIntensity: oldVal?.playIntensity,
@@ -1090,6 +1102,7 @@
           applyTheme(changes[THEME_STORAGE_KEY].newValue);
         }
         applyPrefsToOverlay();
+        logAppliedUserPrefs("live storage change (after applyPrefsToOverlay)");
       });
     }
     await persistence.load();
