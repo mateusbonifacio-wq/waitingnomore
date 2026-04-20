@@ -1,5 +1,5 @@
 /**
- * Single source of truth for extension-related preferences (web + Chrome extension).
+ * Keel — extension-related preferences (web + Chrome extension).
  *
  * Shape matches `extension/content.js` / `extension/background.js` coerceUserPrefs.
  *

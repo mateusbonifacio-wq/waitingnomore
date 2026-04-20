@@ -25,7 +25,7 @@ export default async function SiteNav() {
     <header className="site-header">
       <div className="site-header-inner">
         <Link href="/" className="site-logo">
-          Waiting No More
+          Keel
         </Link>
         <div className="site-header-actions">
           <nav className="site-nav" aria-label="Main">

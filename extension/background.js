@@ -1,5 +1,5 @@
 /**
- * Receives settings from the companion web app (externally_connectable origins)
+ * Receives settings from the Keel web app (externally_connectable origins)
  * and writes chrome.storage.local so open ChatGPT tabs update via storage.onChanged.
  *
  * Context export feature is currently paused

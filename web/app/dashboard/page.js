@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from "../../lib/supabase/server";
 
 export const metadata = {
   title: "Dashboard",
-  description: "Session stats and recent activity from your idle-time micro-interactions."
+  description: "Keel — session overview and recent activity from your ChatGPT runs."
 };
 
 function formatHps(n) {
@@ -73,9 +73,7 @@ export default async function DashboardPage() {
   return (
     <main className="page">
       <h1 className="page-title">Dashboard</h1>
-      <p className="page-sub">
-        Overview of synced session stats for your account.
-      </p>
+      <p className="page-sub">Before you drift. Synced session overview for your account.</p>
       {!user ? (
         <p className="muted-note">
           <Link href="/login?next=/dashboard">Login</Link> to see your synced session data.
@@ -120,7 +118,8 @@ export default async function DashboardPage() {
             {!recent.length ? (
               <tr>
                 <td colSpan={6} className="muted-note" style={{ textAlign: "center" }}>
-                  No synced sessions yet. Install the extension and enable upload in a later step.
+                  No synced sessions yet. Keel is what keeps you steady when you start to drift — connect the extension,
+                  then session upload will land here.
                 </td>
               </tr>
             ) : null}

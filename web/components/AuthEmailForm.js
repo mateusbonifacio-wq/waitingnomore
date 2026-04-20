@@ -35,7 +35,8 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
   return (
     <form onSubmit={onSubmit} className="settings-section" style={{ maxWidth: 520 }}>
       <h2>Sign in</h2>
-      <p className="muted-note">Use magic link email sign-in. No password required.</p>
+      <p className="muted-note">Before you drift.</p>
+      <p className="muted-note">Magic link email. No password.</p>
       <div className="setting-row setting-row--stack">
         <label className="setting-label" htmlFor="auth-email">
           Email

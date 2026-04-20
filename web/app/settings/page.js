@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from "../../lib/supabase/server";
 
 export const metadata = {
   title: "Settings",
-  description: "Intensity, when the overlay appears, and other companion preferences for Waiting No More."
+  description: "Keel preferences — overlay, rhythm, and appearance for ChatGPT."
 };
 
 export default async function SettingsPage() {
@@ -48,8 +48,7 @@ export default async function SettingsPage() {
     <main className="page">
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">
-        Simple controls for the extension experience. Signed-in users sync these settings to Supabase so preferences are
-        available across devices.
+        Calm controls for how Keel behaves on ChatGPT. When you are signed in, these sync to your account.
       </p>
       {!user ? (
         <p className="muted-note">

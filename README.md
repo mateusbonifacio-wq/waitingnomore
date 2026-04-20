@@ -1,6 +1,6 @@
-# Idle-Time Interaction Repo
+# Keel
 
-Clean single-developer structure with a Chrome extension and a web app ready for Vercel + Supabase.
+Chrome extension + Next.js web companion for ChatGPT — calm, minimal, ready for Vercel + Supabase.
 
 ## Project Structure
 

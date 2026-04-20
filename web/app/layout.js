@@ -4,10 +4,10 @@ import "./globals.css";
 
 export const metadata = {
   title: {
-    default: "Waiting No More",
-    template: "%s | Waiting No More"
+    default: "Keel",
+    template: "%s | Keel"
   },
-  description: "Turn AI waiting time into fast micro-interactions while ChatGPT generates."
+  description: "Keel is what keeps you steady when you start to drift. A calm companion for ChatGPT."
 };
 
 export default function RootLayout({ children }) {
@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
         <SiteNav />
         {children}
         <footer className="site-footer">
-          Waiting No More — companion web for the Chrome extension. Deploy the <code>web</code> folder on Vercel.
+          Keel — Before you drift. Deploy the <code>web</code> folder on Vercel.
         </footer>
       </body>
     </html>

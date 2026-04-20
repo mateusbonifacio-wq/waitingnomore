@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.12";
+  const IDLE_EXTENSION_VERSION = "1.0.13";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -9,7 +9,7 @@
 
   if (window.__chatgptIdleOverlayInjected) return;
   window.__chatgptIdleOverlayInjected = true;
-  console.log(`Idle Extension v${IDLE_EXTENSION_VERSION} loaded`);
+  console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded`);
 
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
   const SUMMARY_MIN_MS = 2800;
@@ -352,7 +352,7 @@
   function createTestBadge() {
     const badge = document.createElement("div");
     badge.id = "idle-time-test-badge";
-    badge.textContent = "Idle overlay on";
+    badge.textContent = "Keel";
     document.documentElement.appendChild(badge);
   }
 
@@ -362,8 +362,11 @@
     root.innerHTML = `
       <div class="idle-time-card hidden" role="status" aria-live="polite">
         <span class="idle-time-version" aria-hidden="true">v${IDLE_EXTENSION_VERSION}</span>
-        <div class="idle-time-header"><span class="idle-time-title">Idle-Time Interaction</span></div>
-        <p class="idle-time-settings-strip" data-settings-strip aria-live="polite" aria-label="Active extension settings for testing">${formatSettingsStrip()}</p>
+        <div class="idle-time-header">
+          <span class="idle-time-title">Keel</span>
+          <span class="idle-time-tagline">Before you drift.</span>
+        </div>
+        <p class="idle-time-settings-strip" data-settings-strip aria-live="polite" aria-label="Current preferences">${formatSettingsStrip()}</p>
         <div class="idle-time-tabs">
           <button class="idle-time-tab active" data-mode="play">Play Mode</button>
           <button class="idle-time-tab" data-mode="brain">Brain Mode</button>

@@ -100,6 +100,9 @@
 
 .idle-time-header {
   margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .idle-time-title {
@@ -107,6 +110,13 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   color: #e5e7eb;
+}
+
+.idle-time-tagline {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(161, 161, 170, 0.95);
 }
 
 .idle-time-tabs {
@@ -516,6 +526,10 @@
 
 #idle-time-overlay-root.idle-time-root--theme-light .idle-time-title {
   color: #0f172a;
+}
+
+#idle-time-overlay-root.idle-time-root--theme-light .idle-time-tagline {
+  color: rgba(15, 23, 42, 0.55);
 }
 
 #idle-time-overlay-root.idle-time-root--theme-light .idle-time-settings-strip {

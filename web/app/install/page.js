@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from "../../lib/supabase/server";
 
 export const metadata = {
   title: "Install",
-  description: "Install and connect the Waiting No More extension."
+  description: "Install Keel — connect the extension to your web account."
 };
 
 export default async function InstallPage() {
@@ -21,9 +21,10 @@ export default async function InstallPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Install extension</h1>
+      <h1 className="page-title">Install Keel</h1>
       <p className="page-sub">
-        This flow links your web app and extension settings. Keep the same browser profile for first-time setup.
+        Keel is what keeps you steady when you start to drift. Use the same Chrome profile for the site and the
+        extension during setup.
       </p>
 
       {!user ? (

@@ -9,14 +9,14 @@ export default function ExtensionInstallPanel({ isAuthenticated }) {
 
   async function verifyExtension() {
     setChecking(true);
-    setStatus("Checking extension connection...");
+    setStatus("Checking connection…");
     try {
       const result = await fetchFullSettingsFromExtension();
       if (!result.ok) {
         setStatus(`Could not reach extension: ${result.reason || "unknown error"}`);
         return;
       }
-      setStatus("Extension connected. Settings bridge is active.");
+      setStatus("Keel is connected. Settings bridge is active.");
       if (isAuthenticated) {
         await fetch("/api/extension-install", {
           method: "POST",
@@ -33,13 +33,12 @@ export default function ExtensionInstallPanel({ isAuthenticated }) {
 
   return (
     <section className="settings-section">
-      <h2>Verify install</h2>
+      <h2>Verify</h2>
       <p className="muted-note">
-        After loading the unpacked extension in Chrome, click verify. This confirms that your web app can reach the
-        extension bridge.
+        After loading the unpacked extension in Chrome, confirm the bridge from this site to Keel.
       </p>
       <button type="button" className="btn btn-primary" onClick={verifyExtension} disabled={checking}>
-        {checking ? "Checking..." : "Verify extension connection"}
+        {checking ? "Checking…" : "Verify"}
       </button>
       {status ? <p className="muted-note">{status}</p> : null}
     </section>

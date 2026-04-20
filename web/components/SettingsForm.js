@@ -201,12 +201,10 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
 
       <p className="muted-note">
         Saved as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage. With{" "}
-        <code>NEXT_PUBLIC_EXTENSION_ID</code> set to your extension ID (from chrome://extensions), changes also push
-        live to the extension via <code>chrome.storage.local</code> — open ChatGPT and change theme, intensity, or
-        trigger: the overlay strip and colors should update within about a second, no tab reload. Default session mode
-        and summary toggle apply on the <strong>next</strong> generation session. If push fails, use the extension{" "}
-        <strong>Options</strong> page or add your site origin to <code>externally_connectable</code> in the extension
-        manifest.
+        <code>NEXT_PUBLIC_EXTENSION_ID</code> set (from <code>chrome://extensions</code>), changes push to Keel via{" "}
+        <code>chrome.storage.local</code> — on ChatGPT, the strip and theme update without reloading the tab. Default
+        session mode and summary apply on the <strong>next</strong> generation. If push fails, use Keel{" "}
+        <strong>Options</strong> or add this site under <code>externally_connectable</code> in the extension manifest.
       </p>
     </>
   );

@@ -1,4 +1,4 @@
--- Waiting No More: initial Supabase schema for external users
+-- Keel: initial Supabase schema for external users
 -- Run in Supabase SQL editor.
 
 create extension if not exists pgcrypto;

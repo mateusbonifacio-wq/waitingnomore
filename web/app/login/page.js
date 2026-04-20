@@ -3,8 +3,8 @@ import AuthEmailForm from "../../components/AuthEmailForm";
 import { getSupabaseServerClient } from "../../lib/supabase/server";
 
 export const metadata = {
-  title: "Login",
-  description: "Sign in to sync Waiting No More settings and installs across browsers."
+  title: "Sign in",
+  description: "Sign in to Keel — sync settings and installs across browsers."
 };
 
 export default async function LoginPage({ searchParams }) {
@@ -18,8 +18,11 @@ export default async function LoginPage({ searchParams }) {
 
   return (
     <main className="page">
-      <h1 className="page-title">Login</h1>
-      <p className="page-sub">Create your account and keep settings tied to you, not just to one browser profile.</p>
+      <h1 className="page-title">Sign in</h1>
+      <p className="page-sub">
+        Keel is what keeps you steady when you start to drift. Sign in to keep settings and installs with your account,
+        not only this browser profile.
+      </p>
       <AuthEmailForm nextPath={nextPath} />
     </main>
   );

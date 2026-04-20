@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Idle-Time Interaction MVP",
-  "version": "1.0.12",
-  "description": "Shows an interactive overlay while ChatGPT is generating.",
+  "name": "Keel",
+  "version": "1.0.13",
+  "description": "Keel is what keeps you steady when you start to drift. A calm overlay for ChatGPT while it generates.",
   "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Before you drift."
+  },
   "background": {
     "service_worker": "background.js"
   },
