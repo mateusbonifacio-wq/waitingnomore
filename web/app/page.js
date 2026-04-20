@@ -11,6 +11,9 @@ export default function HomePage() {
           — then summarizes each session so you can track momentum over time.
         </p>
         <div className="cta-row">
+          <Link href="/install" className="btn btn-primary">
+            Install extension
+          </Link>
           <Link href="/dashboard" className="btn btn-primary">
             Open dashboard
           </Link>

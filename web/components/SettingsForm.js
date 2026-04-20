@@ -8,7 +8,7 @@ import {
   saveExtensionSettings
 } from "../lib/extensionSettings";
 
-export default function SettingsForm() {
+export default function SettingsForm({ isAuthenticated = false, initialCloudSettings = null }) {
   const [ready, setReady] = useState(false);
   const [overlayWhileGenerating, setOverlayWhileGenerating] = useState(defaultExtensionSettings.overlayWhileGenerating);
   const [defaultSessionMode, setDefaultSessionMode] = useState(defaultExtensionSettings.defaultSessionMode);
@@ -29,6 +29,18 @@ export default function SettingsForm() {
   }, []);
 
   useEffect(() => {
+    if (!initialCloudSettings || typeof initialCloudSettings !== "object") return;
+    const s = initialCloudSettings;
+    setOverlayWhileGenerating(Boolean(s.overlayWhileGenerating));
+    setDefaultSessionMode(s.defaultSessionMode || defaultExtensionSettings.defaultSessionMode);
+    setShowSessionSummary(Boolean(s.showSessionSummary));
+    setPlayIntensity(s.playIntensity || defaultExtensionSettings.playIntensity);
+    setTriggerWhen(s.triggerWhen || defaultExtensionSettings.triggerWhen);
+    setThemeMode(s.themeMode || defaultExtensionSettings.themeMode);
+    void saveExtensionSettings(s);
+  }, [initialCloudSettings]);
+
+  useEffect(() => {
     function onWnmSettings(e) {
       const s = e.detail;
       if (!s || typeof s !== "object") return;
@@ -44,7 +56,13 @@ export default function SettingsForm() {
   }, []);
 
   async function persist(partial) {
-    await saveExtensionSettings(partial);
+    const merged = await saveExtensionSettings(partial);
+    if (!isAuthenticated) return;
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(merged)
+    });
   }
 
   if (!ready) {

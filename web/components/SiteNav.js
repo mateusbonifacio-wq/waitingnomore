@@ -1,13 +1,26 @@
 import Link from "next/link";
 import ThemeToggle from "./ThemeToggle";
+import { getSupabaseServerClient } from "../lib/supabase/server";
 
 const links = [
   { href: "/", label: "Home" },
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/settings", label: "Settings" }
+  { href: "/settings", label: "Settings" },
+  { href: "/install", label: "Install" }
 ];
 
-export default function SiteNav() {
+export default async function SiteNav() {
+  let user = null;
+  try {
+    const supabase = getSupabaseServerClient();
+    const {
+      data: { user: authUser }
+    } = await supabase.auth.getUser();
+    user = authUser;
+  } catch {
+    user = null;
+  }
+
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -22,6 +35,17 @@ export default function SiteNav() {
               </Link>
             ))}
           </nav>
+          {user ? (
+            <form action="/auth/signout" method="post">
+              <button type="submit" className="btn btn-ghost">
+                Logout
+              </button>
+            </form>
+          ) : (
+            <Link href="/login" className="btn btn-ghost">
+              Login
+            </Link>
+          )}
           <ThemeToggle />
         </div>
       </div>

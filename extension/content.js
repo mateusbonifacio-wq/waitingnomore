@@ -14,6 +14,8 @@
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
   const SUMMARY_MIN_MS = 2800;
   const SUMMARY_MAX_MS = 7200;
+  /** Delay before the next brain question after an answer. Independent of play intensity (chill/normal/intense). */
+  const BRAIN_NEXT_QUESTION_DELAY_MS = 1000;
   const GENERATION_POLL_MS = 280;
   const MAX_STORED_SESSIONS = 200;
   const MAX_STORED_EVENTS = 600;
@@ -240,7 +242,8 @@
   }
 
 
-  function getPlayTuning() {
+  /** Play-mode reaction game only. Do not use for brain or focus timing. */
+  function getPlayModeTuning() {
     const p = userPrefs.playIntensity;
     if (p === "chill") {
       return {
@@ -542,13 +545,13 @@
     }
 
     function difficultyWindowMs() {
-      const t = getPlayTuning();
+      const t = getPlayModeTuning();
       const rounds = runtimeStats.hits + runtimeStats.playMisses;
       return Math.max(t.minV, Math.min(t.maxV, Math.round(t.base - rounds * t.step)));
     }
 
     function nextGapMs() {
-      const t = getPlayTuning();
+      const t = getPlayModeTuning();
       const rounds = runtimeStats.hits + runtimeStats.playMisses;
       return Math.max(36, Math.round(t.gapMin + Math.random() * t.gapSpread - Math.min(38, rounds * t.gapRamp)));
     }
@@ -675,7 +678,7 @@
     }
 
     updateHud();
-    scheduleSpawn(getPlayTuning().spawnDelay);
+    scheduleSpawn(getPlayModeTuning().spawnDelay);
   }
 
   function renderBrainMode() {
@@ -699,7 +702,7 @@
         brainNextTimer = setTimeout(() => {
           brainIndex = (brainIndex + 1) % brainQuestions.length;
           renderBrainMode();
-        }, 1000);
+        }, BRAIN_NEXT_QUESTION_DELAY_MS);
       });
       answersEl.appendChild(button);
     });

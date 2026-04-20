@@ -1,6 +1,6 @@
 # Idle-Time Interaction Repo
 
-Clean single-developer structure with a Chrome extension and a web app ready for Vercel.
+Clean single-developer structure with a Chrome extension and a web app ready for Vercel + Supabase.
 
 ## Project Structure
 
@@ -11,9 +11,10 @@ Clean single-developer structure with a Chrome extension and a web app ready for
 │   ├── content.js
 │   └── styles.css
 └── web/         # Next.js app (deploy target: Vercel)
-    ├── app/          # routes: /, /dashboard, /settings
+    ├── app/          # routes: /, /dashboard, /settings, /install, /login
     ├── components/
     ├── lib/
+    ├── supabase/     # SQL schema bootstrap
     ├── next.config.mjs
     ├── vercel.json   # forces Next.js on Vercel (see deploy notes)
     └── package.json
@@ -40,6 +41,29 @@ cd web
 npm install
 npm run dev
 ```
+
+### Environment
+
+Create `web/.env.local` from `web/.env.example`:
+
+```bash
+NEXT_PUBLIC_EXTENSION_ID=...
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+## Supabase setup
+
+1. Create a Supabase project.
+2. In **Authentication**, enable Email OTP / magic link.
+3. Run `web/supabase/schema.sql` in the SQL editor.
+4. Add the app URL(s) to Supabase Auth redirect allow-list (e.g. `http://localhost:3000/auth/callback` and your production callback URL).
+
+This first version includes:
+- `profiles` (user record),
+- `user_settings` (per-user extension settings),
+- `extension_installs` (install/connect events from web install flow),
+- `idle_sessions` (ready for extension session upload).
 
 ## Vercel Deployment (web only)
 
