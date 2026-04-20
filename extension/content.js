@@ -1,15 +1,22 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.14";
+  const IDLE_EXTENSION_VERSION = "1.0.16";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
   // Can be revisited later
   // (code preserved under extension/experimental/contextExport/)
 
-  if (window.__chatgptIdleOverlayInjected) return;
-  window.__chatgptIdleOverlayInjected = true;
-  console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded`);
+  if (window.__keelOverlayInjected) return;
+  window.__keelOverlayInjected = true;
+
+  const gen = globalThis.__KEEL_GENERATION_API;
+  if (!gen || typeof gen.detectGeneratingState !== "function" || typeof gen.isStopGenerationControl !== "function") {
+    console.error("Keel: missing __KEEL_GENERATION_API (site script must load before content.js).");
+    return;
+  }
+
+  console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded [${gen.siteId || "unknown"}]`);
 
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
   const SUMMARY_MIN_MS = 2800;
@@ -35,7 +42,8 @@
     playIntensity: "normal",
     triggerWhen: "always",
     smartTriggerMinGenerationSec: 3,
-    themeMode: "dark"
+    themeMode: "dark",
+    enabledGames: ["current"]
   };
   let userPrefs = { ...defaultUserPrefs };
   let rawGenerationSince = 0;
@@ -49,7 +57,6 @@
 
   let currentMode = MODES.PLAY;
   let isGenerating = false;
-  let playMoveTimer = null;
   let brainNextTimer = null;
   let summaryHideTimer = null;
   let summaryExitTimer = null;
@@ -60,11 +67,10 @@
   let modeBody;
   let generationPollTimer = null;
   let summaryDismissAbort = null;
-  /** Monotonic id for each play target round (expire callback compares to playArmedRoundId). */
-  let playRoundSeq = 0;
-  /** While a target is spawned+active, matches that target's round id; null between rounds or after void. */
-  let playArmedRoundId = null;
-  let playActiveTargetEl = null;
+  /** Which micro-game runs for this generation (set in startSession). */
+  let sessionPlayGameId = "current";
+  /** Cleanup for the active play-mode micro-game (set by renderPlayMode). */
+  let destroyActivePlayGame = null;
   const DEBUG_PLAY = false;
   /** Set false to silence settings sync logs after validation. */
   const DEBUG_SETTINGS_SYNC = true;
@@ -76,16 +82,15 @@
   }
 
   function voidPlayRound(reason) {
-    debugPlay("void", reason, { armed: playArmedRoundId });
-    if (playMoveTimer) {
-      clearTimeout(playMoveTimer);
-      playMoveTimer = null;
+    debugPlay("void", reason);
+    if (destroyActivePlayGame) {
+      try {
+        destroyActivePlayGame(reason);
+      } catch (_e) {
+        /* ignore teardown errors */
+      }
+      destroyActivePlayGame = null;
     }
-    playArmedRoundId = null;
-    if (playActiveTargetEl && playActiveTargetEl.parentNode) {
-      playActiveTargetEl.remove();
-    }
-    playActiveTargetEl = null;
   }
 
   const persistenceState = {
@@ -174,6 +179,15 @@
     if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
     const sec = Number(raw.smartTriggerMinGenerationSec);
     if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
+    const gr = globalThis.__KEEL_GAMES_REGISTRY;
+    if (gr && typeof gr.normalizeEnabledGames === "function") {
+      base.enabledGames = gr.normalizeEnabledGames(raw.enabledGames);
+    } else if (Array.isArray(raw.enabledGames)) {
+      const validIds = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+      const filtered = raw.enabledGames.filter((x) => typeof x === "string" && validIds.has(x));
+      const uniq = [...new Set(filtered)];
+      base.enabledGames = uniq.length ? uniq : ["current"];
+    }
     return base;
   }
 
@@ -219,7 +233,8 @@
       playIntensity: userPrefs.playIntensity,
       triggerWhen: userPrefs.triggerWhen,
       smartTriggerMinGenerationSec: userPrefs.smartTriggerMinGenerationSec,
-      themeMode: userPrefs.themeMode
+      themeMode: userPrefs.themeMode,
+      enabledGames: userPrefs.enabledGames
     });
   }
 
@@ -520,6 +535,7 @@
   }
 
   function renderPlayMode() {
+    voidPlayRound("renderPlayMode");
     modeBody.innerHTML = `
       <div class="play-react">
         <div class="play-hud" aria-live="polite">
@@ -527,7 +543,7 @@
           <span class="play-hud-stat"><span class="play-hud-label">miss</span> <strong data-play-miss>0</strong></span>
           <span class="play-hud-stat play-hud-avg"><span class="play-hud-label">avg</span> <strong data-play-avg>—</strong></span>
         </div>
-        <div class="play-area" aria-label="Reaction targets"></div>
+        <div class="play-area" aria-label="Micro-game"></div>
       </div>
     `;
     const area = modeBody.querySelector(".play-area");
@@ -547,141 +563,33 @@
       elAvg.textContent = `${avg}ms`;
     }
 
-    function difficultyWindowMs() {
-      const t = getPlayModeTuning();
-      const rounds = runtimeStats.hits + runtimeStats.playMisses;
-      return Math.max(t.minV, Math.min(t.maxV, Math.round(t.base - rounds * t.step)));
+    const ctx = {
+      gameId: sessionPlayGameId,
+      modeBody,
+      area,
+      elHits,
+      elMiss,
+      elAvg,
+      card,
+      isPlayMode: () => currentMode === MODES.PLAY,
+      isGenerating: () => isGenerating,
+      isCardHidden: () => card.classList.contains("hidden"),
+      getPlayModeTuning,
+      runtimeStats,
+      trackEvent,
+      debugPlay,
+      updateHud
+    };
+
+    const create = globalThis.__KEEL_createMicroGame;
+    if (typeof create !== "function") {
+      console.error("Keel: missing __KEEL_createMicroGame (game scripts must load before content.js).");
+      return;
     }
-
-    function nextGapMs() {
-      const t = getPlayModeTuning();
-      const rounds = runtimeStats.hits + runtimeStats.playMisses;
-      return Math.max(36, Math.round(t.gapMin + Math.random() * t.gapSpread - Math.min(38, rounds * t.gapRamp)));
-    }
-
-    function showReactionPop(clientX, clientY, ms) {
-      const rect = area.getBoundingClientRect();
-      const pop = document.createElement("div");
-      pop.className = "play-pop";
-      pop.textContent = `${ms}ms`;
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      pop.style.left = `${Math.max(4, Math.min(rect.width - 48, x - 22))}px`;
-      pop.style.top = `${Math.max(4, Math.min(rect.height - 28, y - 28))}px`;
-      area.appendChild(pop);
-      window.setTimeout(() => pop.remove(), 520);
-    }
-
-    function scheduleSpawn(delayMs) {
-      if (playMoveTimer) {
-        clearTimeout(playMoveTimer);
-        playMoveTimer = null;
-      }
-      playMoveTimer = window.setTimeout(() => {
-        playMoveTimer = null;
-        spawn();
-      }, delayMs);
-    }
-
-    function spawn() {
-      if (currentMode !== MODES.PLAY || !area.isConnected) return;
-      if (!isGenerating) return;
-      if (card.classList.contains("hidden")) return;
-
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (currentMode !== MODES.PLAY || !area.isConnected) return;
-          if (!isGenerating) return;
-          if (card.classList.contains("hidden")) return;
-
-          voidPlayRound("spawnCommit");
-          const roundId = ++playRoundSeq;
-          playArmedRoundId = roundId;
-          debugPlay("spawn armed", { roundId });
-
-          const target = document.createElement("button");
-          target.type = "button";
-          target.className = "play-target play-target--live";
-          target.setAttribute("aria-label", "Hit");
-          const size = 32;
-          const pad = 6;
-          const w = Math.max(8, area.clientWidth - size - pad * 2);
-          const h = Math.max(8, area.clientHeight - size - pad * 2);
-          const x = Math.floor(pad + Math.random() * w);
-          const y = Math.floor(pad + Math.random() * h);
-          target.style.left = `${x}px`;
-          target.style.top = `${y}px`;
-          const spawnAt = performance.now();
-          const windowMs = difficultyWindowMs();
-          area.appendChild(target);
-          playActiveTargetEl = target;
-
-          playMoveTimer = window.setTimeout(() => {
-            playMoveTimer = null;
-            if (playArmedRoundId !== roundId) {
-              debugPlay("expire ignored (stale round)", { roundId, armed: playArmedRoundId });
-              return;
-            }
-            if (currentMode !== MODES.PLAY || !isGenerating || card.classList.contains("hidden")) {
-              debugPlay("expire ignored (session/context)", { roundId });
-              voidPlayRound("expireAbortContext");
-              return;
-            }
-            if (playActiveTargetEl !== target || !target.isConnected) {
-              debugPlay("expire ignored (no target)", { roundId });
-              voidPlayRound("expireAbortNoTarget");
-              if (currentMode === MODES.PLAY && isGenerating && !card.classList.contains("hidden")) {
-                scheduleSpawn(nextGapMs());
-              }
-              return;
-            }
-            playArmedRoundId = null;
-            playActiveTargetEl = null;
-            target.remove();
-            runtimeStats.playMisses += 1;
-            debugPlay("miss", { roundId, totalMisses: runtimeStats.playMisses });
-            trackEvent("play_miss", { totalMisses: runtimeStats.playMisses, totalHits: runtimeStats.hits });
-            updateHud();
-            scheduleSpawn(nextGapMs());
-          }, windowMs);
-
-          target.addEventListener(
-            "click",
-            (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (playMoveTimer) {
-                clearTimeout(playMoveTimer);
-                playMoveTimer = null;
-              }
-              if (playArmedRoundId !== roundId || playActiveTargetEl !== target) {
-                debugPlay("hit ignored (stale)", { roundId, armed: playArmedRoundId });
-                return;
-              }
-              playArmedRoundId = null;
-              playActiveTargetEl = null;
-              const reactionMs = Math.round(performance.now() - spawnAt);
-              runtimeStats.reactionMsSamples.push(reactionMs);
-              runtimeStats.hits += 1;
-              debugPlay("hit", { roundId, reactionMs, totalHits: runtimeStats.hits });
-              trackEvent("play_hit", { totalHits: runtimeStats.hits, reactionMs });
-              target.classList.remove("play-target--live");
-              target.classList.add("play-target--hit");
-              showReactionPop(event.clientX, event.clientY, reactionMs);
-              window.setTimeout(() => {
-                if (target.parentNode) target.remove();
-              }, 140);
-              updateHud();
-              scheduleSpawn(nextGapMs());
-            },
-            { passive: false }
-          );
-        });
-      });
-    }
-
-    updateHud();
-    scheduleSpawn(getPlayModeTuning().spawnDelay);
+    const inst = create(sessionPlayGameId, ctx);
+    destroyActivePlayGame = () => {
+      if (inst && typeof inst.destroy === "function") inst.destroy(ctx);
+    };
   }
 
   function renderBrainMode() {
@@ -739,7 +647,12 @@
     runtimeStats.brainCorrect = 0;
     runtimeStats.focusPromptsCompleted = 0;
     runtimeStats.events = [];
-    trackEvent("session_started", { mode: currentMode });
+    const gReg = globalThis.__KEEL_GAMES_REGISTRY;
+    sessionPlayGameId =
+      gReg && typeof gReg.pickRandomGameId === "function"
+        ? gReg.pickRandomGameId(userPrefs.enabledGames)
+        : "current";
+    trackEvent("session_started", { mode: currentMode, microGame: sessionPlayGameId });
   }
 
   function finishSession(generationEndedSuccessfully) {
@@ -933,38 +846,8 @@
     return true;
   }
 
-  function isStopGenerationControl(button) {
-    const testId = (button.getAttribute("data-testid") || "").toLowerCase();
-    const label = (button.getAttribute("aria-label") || "").toLowerCase();
-    const text = (button.textContent || "").trim().toLowerCase();
-    if (testId.includes("stop-button") || (testId.includes("stop") && testId.includes("button"))) return true;
-    if (label.includes("stop generating")) return true;
-    if (text === "stop" || text === "stop generating") return true;
-    return false;
-  }
-
-  function hasVisibleStopControl() {
-    return Array.from(document.querySelectorAll("button")).some(
-      (button) => isStopGenerationControl(button) && isElementInteractable(button)
-    );
-  }
-
-  function hasStreamingDomSignals() {
-    if (document.querySelector(".result-streaming")) return true;
-    if (document.querySelector('[data-is-streaming="true"]')) return true;
-    if (document.querySelector("[aria-live='assertive'] .result-streaming")) return true;
-    return false;
-  }
-
-  function detectGeneratingState() {
-    if (hasVisibleStopControl()) return true;
-    if (hasStreamingDomSignals()) return true;
-    const stopGen = document.querySelector("[aria-label='Stop generating']");
-    return !!(stopGen && isElementInteractable(stopGen));
-  }
-
   function syncGenerationOverlay() {
-    const raw = detectGeneratingState();
+    const raw = gen.detectGeneratingState();
     const now = Date.now();
     if (raw && !rawGenerationSince) rawGenerationSince = now;
     if (!raw) rawGenerationSince = 0;
@@ -1004,7 +887,7 @@
     document.querySelectorAll("button").forEach((btn) => {
       if (btn.closest("#idle-time-overlay-root")) return;
       if (btn.closest("#idle-context-pin-root")) return;
-      if (!isStopGenerationControl(btn) || !isElementInteractable(btn)) return;
+      if (!gen.isStopGenerationControl(btn) || !isElementInteractable(btn)) return;
       const r = btn.getBoundingClientRect();
       if (r.top < vpH * 0.35) return;
       minObstacleTop = Math.min(minObstacleTop, r.top);
@@ -1060,7 +943,7 @@
     }, summaryMs);
   }
 
-  function observeChatGptDom() {
+  function observeHostDom() {
     const tick = () => {
       syncGenerationOverlay();
       updateOverlaySafePosition();
@@ -1130,7 +1013,7 @@
       { passive: true }
     );
     window.addEventListener("beforeunload", handlePageUnload);
-    observeChatGptDom();
+    observeHostDom();
   }
 
   if (document.readyState === "loading") {

@@ -8,8 +8,20 @@ const defaultUserPrefs = {
   playIntensity: "normal",
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
-  themeMode: "dark"
+  themeMode: "dark",
+  enabledGames: ["current"]
 };
+
+const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+
+function normalizeEnabledGamesList(raw) {
+  if (!Array.isArray(raw)) return ["current"];
+  const out = [];
+  for (const x of raw) {
+    if (typeof x === "string" && MICRO_GAME_IDS.has(x) && !out.includes(x)) out.push(x);
+  }
+  return out.length ? out : ["current"];
+}
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
 const TRIGGER = new Set(["always", "smart"]);
@@ -26,6 +38,7 @@ function coerceUserPrefs(raw) {
   if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
+  base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
   return base;
 }
 
@@ -66,7 +79,9 @@ document.getElementById("save").addEventListener("click", async () => {
   const btn = document.getElementById("save");
   btn.disabled = true;
   try {
-    const next = coerceUserPrefs(formToObject());
+    const data = await chrome.storage.local.get(EXTENSION_SETTINGS_KEY);
+    const prev = coerceUserPrefs(data[EXTENSION_SETTINGS_KEY]);
+    const next = coerceUserPrefs({ ...prev, ...formToObject() });
     await chrome.storage.local.set({ [EXTENSION_SETTINGS_KEY]: next, theme: next.themeMode });
     setStatus("Saved. Open ChatGPT tabs pick this up via chrome.storage — no reload needed for theme and play prefs.");
   } catch (e) {

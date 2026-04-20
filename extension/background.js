@@ -14,8 +14,20 @@ const defaultUserPrefs = {
   playIntensity: "normal",
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
-  themeMode: "dark"
+  themeMode: "dark",
+  enabledGames: ["current"]
 };
+
+const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+
+function normalizeEnabledGamesList(raw) {
+  if (!Array.isArray(raw)) return ["current"];
+  const out = [];
+  for (const x of raw) {
+    if (typeof x === "string" && MICRO_GAME_IDS.has(x) && !out.includes(x)) out.push(x);
+  }
+  return out.length ? out : ["current"];
+}
 
 function coerceUserPrefs(raw) {
   const base = { ...defaultUserPrefs };
@@ -28,6 +40,7 @@ function coerceUserPrefs(raw) {
   if (["light", "dark"].includes(raw.themeMode)) base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
+  base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
   return base;
 }
 

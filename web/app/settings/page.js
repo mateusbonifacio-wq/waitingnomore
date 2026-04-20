@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SettingsForm from "../../components/SettingsForm";
 import { getSupabaseServerClient } from "../../lib/supabase/server";
+import { normalizeEnabledGamesList } from "../../lib/extensionSettings";
 
 export const metadata = {
   title: "Settings",
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
       const { data } = await supabase
         .from("user_settings")
         .select(
-          "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode"
+          "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games"
         )
         .eq("user_id", user.id)
         .maybeSingle();
@@ -39,7 +40,8 @@ export default async function SettingsPage() {
           playIntensity: data.play_intensity,
           triggerWhen: data.trigger_when,
           smartTriggerMinGenerationSec: data.smart_trigger_min_generation_sec,
-          themeMode: data.theme_mode
+          themeMode: data.theme_mode,
+          enabledGames: normalizeEnabledGamesList(data.enabled_games)
         };
       }
     }

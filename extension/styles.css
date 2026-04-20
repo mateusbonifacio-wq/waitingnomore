@@ -201,6 +201,73 @@
   contain: layout style paint;
 }
 
+.keep-alive-layer {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.keep-alive-ball {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #e0e7ff 0%, #6366f1 55%, #4338ca 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 3px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.keep-alive-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  margin: 0;
+  text-align: center;
+  font-size: 10px;
+  color: rgba(161, 161, 170, 0.95);
+  pointer-events: none;
+  user-select: none;
+}
+
+.quick-pattern,
+.micro-memory {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px;
+}
+
+.quick-pattern-display,
+.micro-memory-flash {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #f4f4f5;
+  user-select: none;
+}
+
+.quick-pattern-pad,
+.micro-memory-pad {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.quick-pattern-btn,
+.micro-memory-btn {
+  font-size: 16px;
+  padding: 6px 8px;
+}
+
 .play-target {
   position: absolute;
   width: 32px;

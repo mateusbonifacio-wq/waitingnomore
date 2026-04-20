@@ -230,6 +230,7 @@ export function applyWebDocumentTheme(theme) {
 /** @typedef {"always" | "smart"} TriggerWhen */
 /** @typedef {"play" | "brain" | "focus"} SessionMode */
 /** @typedef {"light" | "dark"} ThemeMode */
+/** @typedef {"current" | "keep_alive" | "quick_pattern" | "micro_memory"} MicroGameId */
 
 /**
  * @typedef {Object} ExtensionSettingsV1
@@ -241,6 +242,7 @@ export function applyWebDocumentTheme(theme) {
  * @property {TriggerWhen} triggerWhen
  * @property {number} smartTriggerMinGenerationSec
  * @property {ThemeMode} themeMode
+ * @property {MicroGameId[]} enabledGames
  */
 
 /** @type {ExtensionSettingsV1} */
@@ -252,13 +254,24 @@ export const defaultExtensionSettings = {
   playIntensity: "normal",
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
-  themeMode: "dark"
+  themeMode: "dark",
+  enabledGames: ["current"]
 };
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
 const TRIGGER = new Set(["always", "smart"]);
 const MODE = new Set(["play", "brain", "focus"]);
 const THEME = new Set(["light", "dark"]);
+const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+
+export function normalizeEnabledGamesList(raw) {
+  if (!Array.isArray(raw)) return ["current"];
+  const out = [];
+  for (const x of raw) {
+    if (typeof x === "string" && MICRO_GAME_IDS.has(x) && !out.includes(x)) out.push(x);
+  }
+  return out.length ? out : ["current"];
+}
 
 export function coerceSettings(raw) {
   const base = { ...defaultExtensionSettings };
@@ -271,6 +284,7 @@ export function coerceSettings(raw) {
   if (THEME.has(raw.themeMode)) base.themeMode = raw.themeMode;
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
+  base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
   return base;
 }
 

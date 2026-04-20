@@ -8,7 +8,8 @@ Chrome extension + Next.js web companion for ChatGPT — calm, minimal, ready fo
 .
 ├── extension/   # Chrome extension (Manifest V3)
 │   ├── manifest.json
-│   ├── content.js
+│   ├── content.js      # shared overlay + sessions (all sites)
+│   ├── sites/          # per-host generation detection (ChatGPT, Gemini, …)
 │   └── styles.css
 └── web/         # Next.js app (deploy target: Vercel)
     ├── app/          # routes: /, /dashboard, /settings, /install, /login

@@ -5,8 +5,16 @@ import {
   defaultExtensionSettings,
   EXTENSION_SETTINGS_STORAGE_KEY,
   loadExtensionSettings,
+  normalizeEnabledGamesList,
   saveExtensionSettings
 } from "../lib/extensionSettings";
+
+const GAME_OPTIONS = [
+  { id: "current", label: "Reaction targets", hint: "Original tap game." },
+  { id: "keep_alive", label: "Keep alive", hint: "Tap before the dot lands." },
+  { id: "quick_pattern", label: "Quick pattern", hint: "Watch arrows, repeat the sequence." },
+  { id: "micro_memory", label: "Micro memory", hint: "Flash of symbols, pick the pair you saw." }
+];
 
 export default function SettingsForm({ isAuthenticated = false, initialCloudSettings = null }) {
   const [ready, setReady] = useState(false);
@@ -16,6 +24,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
   const [playIntensity, setPlayIntensity] = useState(defaultExtensionSettings.playIntensity);
   const [triggerWhen, setTriggerWhen] = useState(defaultExtensionSettings.triggerWhen);
   const [themeMode, setThemeMode] = useState(defaultExtensionSettings.themeMode);
+  const [enabledGames, setEnabledGames] = useState(defaultExtensionSettings.enabledGames);
 
   useEffect(() => {
     const s = loadExtensionSettings();
@@ -25,6 +34,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
     setPlayIntensity(s.playIntensity);
     setTriggerWhen(s.triggerWhen);
     setThemeMode(s.themeMode);
+    setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     setReady(true);
   }, []);
 
@@ -37,6 +47,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
     setPlayIntensity(s.playIntensity || defaultExtensionSettings.playIntensity);
     setTriggerWhen(s.triggerWhen || defaultExtensionSettings.triggerWhen);
     setThemeMode(s.themeMode || defaultExtensionSettings.themeMode);
+    setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     void saveExtensionSettings(s);
   }, [initialCloudSettings]);
 
@@ -50,6 +61,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
       if (s.playIntensity) setPlayIntensity(s.playIntensity);
       if (s.triggerWhen) setTriggerWhen(s.triggerWhen);
       if (s.themeMode === "light" || s.themeMode === "dark") setThemeMode(s.themeMode);
+      if (Array.isArray(s.enabledGames)) setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     }
     window.addEventListener("wnm-settings-changed", onWnmSettings);
     return () => window.removeEventListener("wnm-settings-changed", onWnmSettings);
@@ -63,6 +75,15 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
       headers: { "content-type": "application/json" },
       body: JSON.stringify(merged)
     });
+  }
+
+  function toggleGame(gameId) {
+    const next = enabledGames.includes(gameId)
+      ? enabledGames.filter((g) => g !== gameId)
+      : [...enabledGames, gameId];
+    const normalized = normalizeEnabledGamesList(next.length ? next : ["current"]);
+    setEnabledGames(normalized);
+    void persist({ enabledGames: normalized });
   }
 
   if (!ready) {
@@ -179,6 +200,32 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
+      </section>
+
+      <section className="settings-section" aria-labelledby="settings-games">
+        <h2 id="settings-games">Games</h2>
+        <p className="setting-hint" style={{ marginTop: 0, marginBottom: 12 }}>
+          While a reply generates, Keel picks one of the games you enable here (random each time). At least one stays on.
+        </p>
+        {GAME_OPTIONS.map((g) => (
+          <div key={g.id} className="setting-row setting-row--stack">
+            <div className="setting-label-block">
+              <span className="setting-label" id={`label-game-${g.id}`}>
+                {g.label}
+              </span>
+              <span className="setting-hint">{g.hint}</span>
+            </div>
+            <div className="setting-control">
+              <button
+                type="button"
+                className="toggle"
+                aria-labelledby={`label-game-${g.id}`}
+                aria-checked={enabledGames.includes(g.id)}
+                onClick={() => toggleGame(g.id)}
+              />
+            </div>
+          </div>
+        ))}
       </section>
 
       <section className="settings-section" aria-labelledby="settings-session">

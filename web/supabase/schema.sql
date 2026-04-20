@@ -29,9 +29,13 @@ create table if not exists public.user_settings (
   trigger_when text not null default 'always' check (trigger_when in ('always', 'smart')),
   smart_trigger_min_generation_sec int not null default 3 check (smart_trigger_min_generation_sec between 1 and 30),
   theme_mode text not null default 'dark' check (theme_mode in ('light', 'dark')),
+  enabled_games jsonb not null default '["current"]'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+-- Existing projects: add micro-game selection (safe if column already exists).
+alter table public.user_settings add column if not exists enabled_games jsonb not null default '["current"]'::jsonb;
 
 create table if not exists public.extension_installs (
   id uuid primary key default gen_random_uuid(),
