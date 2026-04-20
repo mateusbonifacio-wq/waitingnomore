@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from "../../lib/supabase/server";
 
 export const metadata = {
   title: "Sign in",
-  description: "Sign in to Keel — sync settings and installs across browsers."
+  description: "Sign in to Keel with email and password — optional magic link."
 };
 
 export default async function LoginPage({ searchParams }) {
@@ -21,8 +21,8 @@ export default async function LoginPage({ searchParams }) {
     <main className="page">
       <h1 className="page-title">Sign in</h1>
       <p className="page-sub">
-        Keel is what keeps you steady when you start to drift. Sign in to keep settings and installs with your account,
-        not only this browser profile.
+        Keel is what keeps you steady when you start to drift. Use your email and password to sync settings and installs
+        with your account. You stay signed in on this browser until you sign out.
       </p>
       <AuthEmailForm nextPath={nextPath} />
     </main>

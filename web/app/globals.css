@@ -526,3 +526,77 @@ input.input {
   font-size: 0.8125rem;
   color: var(--muted);
 }
+
+.auth-card .muted-note {
+  margin-top: 12px;
+}
+
+.auth-mode {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.auth-mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-mode-btn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.auth-mode-btn--active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.auth-magic {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.auth-magic summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+  list-style: none;
+}
+
+.auth-magic summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-magic summary::before {
+  content: "";
+  display: inline-block;
+  width: 0.35em;
+  margin-right: 0.35em;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transform: rotate(-90deg);
+  vertical-align: middle;
+  transition: transform 0.15s ease;
+}
+
+.auth-magic[open] summary::before {
+  transform: rotate(0deg);
+}
+
+.auth-magic[open] summary {
+  margin-bottom: 4px;
+}
