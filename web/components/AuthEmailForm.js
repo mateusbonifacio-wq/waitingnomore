@@ -253,16 +253,42 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
       </form>
 
       {awaitingEmailConfirm ? (
-        <div className="auth-confirm-actions">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={resendPending || pending}
-            onClick={onResendConfirmation}
-          >
-            {resendPending ? "Sending…" : "Resend confirmation email"}
-          </button>
-        </div>
+        <>
+          <div className="auth-confirm-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={resendPending || pending}
+              onClick={onResendConfirmation}
+            >
+              {resendPending ? "Sending…" : "Resend confirmation email"}
+            </button>
+          </div>
+          <div className="auth-supabase-help" role="region" aria-label="Why confirmation email may be missing">
+            <p className="auth-supabase-help-title">No email? This is sent by your Supabase project, not the Keel app.</p>
+            <ul className="auth-supabase-help-list">
+              <li>
+                <strong>Built-in mailer limits:</strong> the default provider throttles and sometimes drops mail. Open{" "}
+                <strong>Authentication → Logs</strong> in the Supabase dashboard and look for auth/email errors.
+              </li>
+              <li>
+                <strong>Reliable delivery:</strong> configure{" "}
+                <a href="https://supabase.com/docs/guides/auth/auth-smtp" target="_blank" rel="noopener noreferrer">
+                  custom SMTP
+                </a>{" "}
+                (SendGrid, Resend, Amazon SES, etc.) under <strong>Project Settings → Authentication → SMTP Settings</strong>.
+              </li>
+              <li>
+                <strong>Local / staging:</strong> in <strong>Authentication → Providers → Email</strong>, turn off{" "}
+                <strong>Confirm email</strong> so sign-up returns a session immediately and you can log in with password
+                without waiting for mail.
+              </li>
+            </ul>
+            <p className="auth-supabase-help-footer">
+              (O envio de emails de confirmação é feito pelo Supabase no painel do projeto — não pelo código Next.js.)
+            </p>
+          </div>
+        </>
       ) : null}
 
       <details className="auth-magic">

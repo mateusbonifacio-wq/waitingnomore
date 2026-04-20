@@ -59,7 +59,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ## Supabase setup
 
 1. Create a Supabase project.
-2. In **Authentication**, enable Email OTP / magic link.
+2. In **Authentication → Providers → Email**, enable the email provider. Keel uses **email + password**; magic link remains optional. If **no confirmation or magic-link emails arrive**, that is almost always a **Supabase mail** issue, not the Next.js app: the built-in sender has **low rate limits** and can fail silently — check **Authentication → Logs**, add **[custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)** under **Project Settings → Authentication → SMTP Settings**, and ensure **URL Configuration** lists your site and `/auth/callback`. For **local development**, you can turn **off** “Confirm email” on the same Email provider screen so sign-up returns a session immediately (password login without inbox).
 3. Run `web/supabase/schema.sql` in the SQL editor.
 4. Add the app URL(s) to Supabase Auth redirect allow-list (e.g. `http://localhost:3000/auth/callback` and your production callback URL).
 

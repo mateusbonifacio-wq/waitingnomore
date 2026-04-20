@@ -605,6 +605,44 @@ input.input {
   margin-top: 12px;
 }
 
+.auth-supabase-help {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.auth-supabase-help-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-supabase-help-list {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.auth-supabase-help-list li {
+  margin-bottom: 6px;
+}
+
+.auth-supabase-help-list a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-supabase-help-footer {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  opacity: 0.92;
+}
+
 .auth-status {
   max-width: 100%;
   line-height: 1.45;
