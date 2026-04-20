@@ -51,6 +51,7 @@ Create `web/.env.local` from `web/.env.example`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+# Or use NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... (same value as “publishable” / “anon” in Supabase UI).
 # Optional: NEXT_PUBLIC_EXTENSION_ID — only for custom domains / sendMessage fallback
 ```
 
