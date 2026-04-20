@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fetchFullSettingsFromExtension } from "../lib/extensionSettings";
+import { verifyKeelExtensionBridge } from "../lib/extensionSettings";
 
 export default function ExtensionInstallPanel({ isAuthenticated }) {
   const [status, setStatus] = useState("");
@@ -11,12 +11,16 @@ export default function ExtensionInstallPanel({ isAuthenticated }) {
     setChecking(true);
     setStatus("Checking connection…");
     try {
-      const result = await fetchFullSettingsFromExtension();
+      const result = await verifyKeelExtensionBridge();
       if (!result.ok) {
-        setStatus(`Could not reach extension: ${result.reason || "unknown error"}`);
+        setStatus(`Keel was not detected in this tab. Reload the extension, refresh this page, then try again.`);
         return;
       }
-      setStatus("Keel is connected. Settings bridge is active.");
+      setStatus(
+        result.version
+          ? `Connected (v${result.version}). Settings on this site sync to ChatGPT.`
+          : `Connected. Settings on this site sync to ChatGPT.`
+      );
       if (isAuthenticated) {
         await fetch("/api/extension-install", {
           method: "POST",

@@ -1,11 +1,7 @@
 /**
- * Receives settings from the Keel web app (externally_connectable origins)
- * and writes chrome.storage.local so open ChatGPT tabs update via storage.onChanged.
- *
- * Context export feature is currently paused
- * Reason: unreliable results and not part of core product
- * Can be revisited later
- * (No background logic was tied to context export; this service worker is unchanged.)
+ * Keel background: settings from web (external postMessage bridge OR chrome.runtime.sendMessage from web page)
+ * and from the webBridge content script (internal chrome.runtime.sendMessage).
+ * Writes chrome.storage.local so ChatGPT tabs update via storage.onChanged.
  */
 
 const EXTENSION_SETTINGS_KEY = "waitingnomore.extensionSettings.v1";
@@ -39,7 +35,6 @@ const MESSAGE_TYPE = "wnm-settings-v1";
 const MESSAGE_GET_THEME = "wnm-get-theme-v1";
 const MESSAGE_GET_SETTINGS = "wnm-get-settings-v1";
 
-/** Canonical theme key for live sync (web app + extension). */
 const THEME_STORAGE_KEY = "theme";
 
 function readMergedSettingsFromStorage(callback) {
@@ -57,7 +52,12 @@ function readMergedSettingsFromStorage(callback) {
   });
 }
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+/**
+ * @param {unknown} message
+ * @param {(response: unknown) => void} sendResponse
+ * @returns {boolean} true if sendResponse will be called asynchronously
+ */
+function handleWebSettingsMessage(message, sendResponse) {
   if (!message || typeof message.type !== "string") {
     sendResponse({ ok: false, error: "unknown_type" });
     return false;
@@ -107,4 +107,20 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     }
   );
   return true;
+}
+
+chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
+  handleWebSettingsMessage(message, sendResponse)
+);
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const t = message?.type;
+  if (t !== MESSAGE_TYPE && t !== MESSAGE_GET_THEME && t !== MESSAGE_GET_SETTINGS) {
+    return false;
+  }
+  if (!sender || sender.id !== chrome.runtime.id) {
+    sendResponse({ ok: false, error: "invalid_sender" });
+    return false;
+  }
+  return handleWebSettingsMessage(message, sendResponse);
 });

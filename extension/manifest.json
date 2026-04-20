@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Keel",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Keel is what keeps you steady when you start to drift. A calm overlay for ChatGPT while it generates.",
   "permissions": ["storage"],
   "action": {
@@ -15,7 +15,9 @@
     "matches": [
       "http://localhost:3000/*",
       "http://localhost:*/*",
+      "https://localhost:*/*",
       "http://127.0.0.1:*/*",
+      "https://127.0.0.1:*/*",
       "https://*.vercel.app/*"
     ]
   },
@@ -29,6 +31,18 @@
       "js": ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "http://localhost:*/*",
+        "https://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://127.0.0.1:*/*",
+        "https://*.vercel.app/*"
+      ],
+      "js": ["webBridge.js"],
+      "run_at": "document_idle"
     }
   ]
 }

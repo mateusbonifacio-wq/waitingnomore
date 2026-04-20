@@ -38,10 +38,10 @@ export default async function InstallPage() {
       <section className="settings-section">
         <h2>Install steps</h2>
         <ol className="muted-note" style={{ marginTop: 0, paddingLeft: 20 }}>
-          <li>Open chrome://extensions and enable Developer mode.</li>
-          <li>Click Load unpacked and select the project `extension` folder.</li>
-          <li>Copy the extension ID into `NEXT_PUBLIC_EXTENSION_ID` in the web env.</li>
-          <li>Reload the web app and click verify below.</li>
+          <li>Open <code>chrome://extensions</code> and turn on Developer mode.</li>
+          <li>Choose <strong>Load unpacked</strong> and select the Keel <code>extension</code> folder.</li>
+          <li>Keep this site open in the <strong>same Chrome profile</strong> where you installed Keel.</li>
+          <li>Refresh this page, then use <strong>Verify</strong> below.</li>
         </ol>
       </section>
 

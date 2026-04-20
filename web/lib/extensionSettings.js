@@ -3,8 +3,8 @@
  *
  * Shape matches `extension/content.js` / `extension/background.js` coerceUserPrefs.
  *
- * Live sync: `NEXT_PUBLIC_EXTENSION_ID` must be set to the unpacked extension ID.
- * The site origin must appear under `externally_connectable` in `extension/manifest.json`.
+ * Primary: `extension/webBridge.js` on this origin (postMessage — no per-user extension ID).
+ * Fallback: `NEXT_PUBLIC_EXTENSION_ID` + `chrome.runtime.sendMessage` for custom domains not in the manifest.
  */
 
 export const EXTENSION_SETTINGS_STORAGE_KEY = "waitingnomore.extensionSettings.v1";
@@ -31,6 +31,9 @@ function wwarn(msg, detail) {
   else console.warn("[wnm sync] " + msg);
 }
 
+const BRIDGE_WEB = "keel-web";
+const BRIDGE_EXT = "keel-extension";
+
 function getExtensionIdForLiveSync() {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_EXTENSION_ID) {
     return String(process.env.NEXT_PUBLIC_EXTENSION_ID).trim();
@@ -44,69 +47,137 @@ function getChromeRuntime() {
 }
 
 /**
+ * @param {string} kind verify | push-settings | get-theme | get-settings
+ * @param {Record<string, unknown>} payload
+ * @param {number} timeoutMs
+ * @returns {Promise<{ connected: boolean, ok?: boolean, version?: string, response?: unknown, error?: string | null, reason?: string }>}
+ */
+function bridgeCall(kind, payload = {}, timeoutMs = 3500) {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve({ connected: false, reason: "no_window" });
+      return;
+    }
+    const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("message", onReply);
+      resolve({ connected: false, reason: "bridge_timeout" });
+    }, timeoutMs);
+
+    function onReply(event) {
+      if (event.source !== window) return;
+      const d = event.data;
+      if (!d || d.source !== BRIDGE_EXT || d.nonce !== nonce) return;
+      settled = true;
+      clearTimeout(timer);
+      window.removeEventListener("message", onReply);
+      resolve({
+        connected: true,
+        ok: d.ok === true,
+        version: d.version,
+        response: d.response,
+        error: d.error
+      });
+    }
+
+    window.addEventListener("message", onReply);
+    window.postMessage({ source: BRIDGE_WEB, kind, nonce, ...payload }, "*");
+  });
+}
+
+/**
+ * Lightweight ping — does not read storage.
+ * @returns {Promise<{ ok: boolean, version?: string, reason?: string }>}
+ */
+export async function verifyKeelExtensionBridge() {
+  const r = await bridgeCall("verify", {}, 2500);
+  if (!r.connected) return { ok: false, reason: r.reason || "bridge_unavailable" };
+  if (r.ok && r.version) return { ok: true, version: String(r.version) };
+  return { ok: false, reason: r.error || "verify_failed" };
+}
+
+/**
  * Push full settings object to the extension (background writes `chrome.storage.local`).
  * @param {ExtensionSettingsV1} settings
  * @returns {Promise<{ ok: boolean, reason?: string }>}
  */
-export function pushSettingsToExtension(settings) {
+export async function pushSettingsToExtension(settings) {
+  if (typeof window === "undefined") {
+    return { ok: false, reason: "no_window" };
+  }
+
+  const br = await bridgeCall("push-settings", { settings }, 4000);
+  if (br.connected) {
+    if (br.ok) {
+      wlog("WEB: push via on-page bridge OK (wnm-settings-v1)", settings);
+      return { ok: true };
+    }
+    wwarn("WEB: bridge push failed", br.error || br.response);
+    return { ok: false, reason: br.error || "bridge_push_failed" };
+  }
+
+  const extensionId = getExtensionIdForLiveSync();
+  if (!extensionId) {
+    wwarn(
+      "WEB: push skipped — extension not detected on this page (load Keel unpacked) and no NEXT_PUBLIC_EXTENSION_ID fallback."
+    );
+    return { ok: false, reason: "no_bridge_no_extension_id" };
+  }
+
+  const chromeApi = getChromeRuntime();
+  if (!chromeApi?.runtime?.sendMessage) {
+    wwarn("WEB: push skipped — not in Chrome or extension bridge unavailable.");
+    return { ok: false, reason: "no_chrome_runtime" };
+  }
+
+  wlog("WEB: sending to extension via extension id (wnm-settings-v1)", settings);
   return new Promise((resolve) => {
-    const extensionId = getExtensionIdForLiveSync();
-    if (!extensionId) {
-      wwarn(
-        "WEB: push skipped — set NEXT_PUBLIC_EXTENSION_ID to your extension id (chrome://extensions → Developer mode → ID)."
-      );
-      resolve({ ok: false, reason: "missing_NEXT_PUBLIC_EXTENSION_ID" });
-      return;
-    }
-    if (typeof window === "undefined") {
-      resolve({ ok: false, reason: "no_window" });
-      return;
-    }
-    const chromeApi = getChromeRuntime();
-    if (!chromeApi?.runtime?.sendMessage) {
-      wwarn("WEB: push skipped — chrome.runtime.sendMessage not available (open the site in Chrome with the extension).");
-      resolve({ ok: false, reason: "no_chrome_runtime" });
-      return;
-    }
-    wlog("WEB: sending to extension (wnm-settings-v1)", settings);
     try {
-      chromeApi.runtime.sendMessage(
-        extensionId,
-        { type: LIVE_SYNC_MESSAGE_TYPE, settings },
-        (response) => {
-          const last = chromeApi.runtime.lastError;
-          if (last) {
-            wwarn("WEB: sendMessage failed — check extension manifest externally_connectable matches this page origin.", last.message);
-            resolve({ ok: false, reason: last.message });
-            return;
-          }
-          const ok = response && response.ok !== false;
-          if (ok) {
-            wlog("WEB: extension acknowledged — background should persist to chrome.storage.local");
-          } else {
-            wwarn("WEB: extension returned failure", response);
-          }
-          resolve(response && typeof response === "object" ? response : { ok: true });
+      chromeApi.runtime.sendMessage(extensionId, { type: LIVE_SYNC_MESSAGE_TYPE, settings }, (response) => {
+        const last = chromeApi.runtime.lastError;
+        if (last) {
+          wwarn("WEB: sendMessage failed — origin may be missing from manifest.", last.message);
+          resolve({ ok: false, reason: last.message });
+          return;
         }
-      );
+        const ok = response && response.ok !== false;
+        if (ok) {
+          wlog("WEB: extension acknowledged — background should persist to chrome.storage.local");
+        } else {
+          wwarn("WEB: extension returned failure", response);
+        }
+        resolve(response && typeof response === "object" ? response : { ok: true });
+      });
     } catch (e) {
       resolve({ ok: false, reason: String(e && e.message ? e.message : e) });
     }
   });
 }
 
-function sendExtensionTyped(type) {
+async function sendExtensionTyped(type) {
+  const kind = type === MESSAGE_GET_THEME ? "get-theme" : type === MESSAGE_GET_SETTINGS ? "get-settings" : null;
+  if (kind) {
+    const br = await bridgeCall(kind, {}, 3500);
+    if (br.connected && br.response && typeof br.response === "object") {
+      return /** @type {Record<string, unknown>} */ (br.response);
+    }
+    if (br.connected) {
+      return { ok: false, reason: br.error || "bridge_failed" };
+    }
+  }
+
+  const extensionId = getExtensionIdForLiveSync();
+  if (!extensionId) {
+    return { ok: false, reason: "no_bridge_no_extension_id" };
+  }
+  const chromeApi = getChromeRuntime();
+  if (!chromeApi?.runtime?.sendMessage) {
+    return { ok: false, reason: "no_chrome_runtime" };
+  }
   return new Promise((resolve) => {
-    const extensionId = getExtensionIdForLiveSync();
-    if (!extensionId) {
-      resolve({ ok: false, reason: "missing_NEXT_PUBLIC_EXTENSION_ID" });
-      return;
-    }
-    const chromeApi = getChromeRuntime();
-    if (!chromeApi?.runtime?.sendMessage) {
-      resolve({ ok: false, reason: "no_chrome_runtime" });
-      return;
-    }
     try {
       chromeApi.runtime.sendMessage(extensionId, { type }, (response) => {
         const last = chromeApi.runtime.lastError;
@@ -256,7 +327,7 @@ export async function syncSettingsFromExtensionOnLoad() {
 
   const r = await fetchFullSettingsFromExtension();
   if (!r.ok || !r.settings) {
-    wlog("WEB: could not read settings from extension (expected if ID/origin missing)", r.reason);
+    wlog("WEB: could not read settings from extension (install extension or check origin in manifest)", r.reason);
     return;
   }
   const merged = coerceSettings({ ...r.settings, schemaVersion: 1 });

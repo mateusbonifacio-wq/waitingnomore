@@ -23,7 +23,9 @@ Chrome extension + Next.js web companion for ChatGPT — calm, minimal, ready fo
 ## Extension
 
 - Location: `extension/`
-- Status: keeps current behavior and logic
+- **Web ↔ extension (local / Vercel previews):** `webBridge.js` is injected on the same URL patterns as `externally_connectable` (localhost, `*.vercel.app`, etc.). The web app talks to Keel via `postMessage` — testers do **not** need `NEXT_PUBLIC_EXTENSION_ID`.
+- **Custom apex domain:** add your `https://your.domain/*` to both `content_scripts` (webBridge entry) and `externally_connectable` in `extension/manifest.json`, or set `NEXT_PUBLIC_EXTENSION_ID` once for the sendMessage fallback.
+- **Chrome Web Store:** the published extension has a stable ID; you can ship that ID in production env if you prefer, but the bridge still covers listed origins.
 - Load in Chrome:
   1. Open `chrome://extensions`
   2. Enable Developer mode
@@ -47,9 +49,9 @@ npm run dev
 Create `web/.env.local` from `web/.env.example`:
 
 ```bash
-NEXT_PUBLIC_EXTENSION_ID=...
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+# Optional: NEXT_PUBLIC_EXTENSION_ID — only for custom domains / sendMessage fallback
 ```
 
 ## Supabase setup

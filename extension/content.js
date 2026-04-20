@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.13";
+  const IDLE_EXTENSION_VERSION = "1.0.14";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
