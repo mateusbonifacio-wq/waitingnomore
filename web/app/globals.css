@@ -600,3 +600,12 @@ input.input {
 .auth-magic[open] summary {
   margin-bottom: 4px;
 }
+
+.auth-confirm-actions {
+  margin-top: 12px;
+}
+
+.auth-status {
+  max-width: 100%;
+  line-height: 1.45;
+}

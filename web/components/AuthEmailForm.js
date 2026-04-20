@@ -28,6 +28,8 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState(false);
   const [magicPending, setMagicPending] = useState(false);
+  const [awaitingEmailConfirm, setAwaitingEmailConfirm] = useState(false);
+  const [resendPending, setResendPending] = useState(false);
 
   async function onPasswordSubmit(e) {
     e.preventDefault();
@@ -60,17 +62,22 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
           return;
         }
         if (!data.session) {
+          setAwaitingEmailConfirm(true);
           setStatus(
-            "Account created. Confirm your email from the message we sent you, then sign in with your password."
+            "Account created. Supabase should email a confirmation link to the address above. " +
+              "Check spam and promotions, wait a few minutes, then sign in with your password. " +
+              "If nothing arrives, use “Resend confirmation” or ask the project owner to check Supabase → Authentication → emails / rate limits, or turn off “Confirm email” for testing."
           );
           return;
         }
+        setAwaitingEmailConfirm(false);
         await upsertProfile(supabase, data.user);
         router.refresh();
         router.push(safeNext);
         return;
       }
 
+      setAwaitingEmailConfirm(false);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setStatus(error.message || "Could not sign in.");
@@ -83,6 +90,37 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
       setStatus(err?.message || "Something went wrong.");
     } finally {
       setPending(false);
+    }
+  }
+
+  async function onResendConfirmation(e) {
+    e.preventDefault();
+    if (!email.trim()) {
+      setStatus("Enter the same email you used to sign up, then try resend.");
+      return;
+    }
+    setResendPending(true);
+    setStatus("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const origin = window.location.origin;
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: { emailRedirectTo: redirectTo }
+      });
+      if (error) {
+        setStatus(error.message || "Could not resend confirmation email.");
+      } else {
+        setStatus(
+          "If the address is valid and signup is still pending confirmation, Supabase queued another email. Check spam again in a few minutes."
+        );
+      }
+    } catch (err) {
+      setStatus(err?.message || "Could not resend.");
+    } finally {
+      setResendPending(false);
     }
   }
 
@@ -130,6 +168,7 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
           onClick={() => {
             setMode("signin");
             setStatus("");
+            setAwaitingEmailConfirm(false);
           }}
         >
           Log in
@@ -142,6 +181,7 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
           onClick={() => {
             setMode("signup");
             setStatus("");
+            setAwaitingEmailConfirm(false);
           }}
         >
           Create account
@@ -212,6 +252,19 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
         </button>
       </form>
 
+      {awaitingEmailConfirm ? (
+        <div className="auth-confirm-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={resendPending || pending}
+            onClick={onResendConfirmation}
+          >
+            {resendPending ? "Sending…" : "Resend confirmation email"}
+          </button>
+        </div>
+      ) : null}
+
       <details className="auth-magic">
         <summary>Sign in with email link instead</summary>
         <p className="setting-hint" style={{ marginTop: 10, marginBottom: 10 }}>
@@ -223,7 +276,7 @@ export default function AuthEmailForm({ nextPath = "/settings" }) {
       </details>
 
       {status ? (
-        <p className="muted-note" role="status">
+        <p className="muted-note auth-status" role="status">
           {status}
         </p>
       ) : null}
