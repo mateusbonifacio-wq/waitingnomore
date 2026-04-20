@@ -13,6 +13,9 @@ export default async function SettingsPage() {
 
   try {
     const supabase = getSupabaseServerClient();
+    if (!supabase) {
+      user = null;
+    } else {
     const {
       data: { user: authUser }
     } = await supabase.auth.getUser();
@@ -39,6 +42,7 @@ export default async function SettingsPage() {
           themeMode: data.theme_mode
         };
       }
+    }
     }
   } catch {
     user = null;

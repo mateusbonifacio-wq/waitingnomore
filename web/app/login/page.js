@@ -10,11 +10,12 @@ export const metadata = {
 export default async function LoginPage({ searchParams }) {
   const nextPath = typeof searchParams?.next === "string" ? searchParams.next : "/settings";
   const supabase = getSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (user) redirect(nextPath);
+  if (supabase) {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (user) redirect(nextPath);
+  }
 
   return (
     <main className="page">

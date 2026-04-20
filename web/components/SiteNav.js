@@ -13,10 +13,14 @@ export default async function SiteNav() {
   let user = null;
   try {
     const supabase = getSupabaseServerClient();
-    const {
-      data: { user: authUser }
-    } = await supabase.auth.getUser();
-    user = authUser;
+    if (!supabase) {
+      user = null;
+    } else {
+      const {
+        data: { user: authUser }
+      } = await supabase.auth.getUser();
+      user = authUser;
+    }
   } catch {
     user = null;
   }

@@ -8,18 +8,20 @@ export async function GET(request) {
 
   if (code) {
     const supabase = getSupabaseServerClient();
-    await supabase.auth.exchangeCodeForSession(code);
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").upsert(
-        {
-          user_id: user.id,
-          display_name: user.email ? user.email.split("@")[0] : null
-        },
-        { onConflict: "user_id" }
-      );
+    if (supabase) {
+      await supabase.auth.exchangeCodeForSession(code);
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").upsert(
+          {
+            user_id: user.id,
+            display_name: user.email ? user.email.split("@")[0] : null
+          },
+          { onConflict: "user_id" }
+        );
+      }
     }
   }
 

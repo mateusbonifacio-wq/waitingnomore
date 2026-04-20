@@ -42,6 +42,7 @@ export default async function DashboardPage() {
   let sessions = [];
   try {
     const supabase = getSupabaseServerClient();
+    if (supabase) {
     const {
       data: { user: authUser }
     } = await supabase.auth.getUser();
@@ -63,6 +64,7 @@ export default async function DashboardPage() {
         hitsPerSecond: row.hits_per_second,
         generationEndedSuccessfully: row.generation_ended_successfully
       }));
+    }
     }
   } catch {
     sessions = [];

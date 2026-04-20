@@ -11,6 +11,9 @@ async function getUserOr401(supabase) {
 
 export async function POST(request) {
   const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return NextResponse.json({ ok: false, error: "supabase_not_configured" }, { status: 503 });
+  }
   const { user, response } = await getUserOr401(supabase);
   if (!user) return response;
 

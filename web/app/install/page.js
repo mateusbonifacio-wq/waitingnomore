@@ -11,10 +11,12 @@ export default async function InstallPage() {
   let user = null;
   try {
     const supabase = getSupabaseServerClient();
-    const {
-      data: { user: authUser }
-    } = await supabase.auth.getUser();
-    user = authUser;
+    if (supabase) {
+      const {
+        data: { user: authUser }
+      } = await supabase.auth.getUser();
+      user = authUser;
+    }
   } catch {
     user = null;
   }
