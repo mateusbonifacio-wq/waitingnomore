@@ -122,9 +122,12 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
 
   return (
     <>
-      <section className="settings-section" aria-labelledby="settings-general">
-        <h2 id="settings-general">General</h2>
-        <p className="section-lead">Theme and session wrap-up.</p>
+      <section className="settings-section" aria-labelledby="settings-experience">
+        <h2 id="settings-experience" className="settings-category-title">
+          Experience
+        </h2>
+        <p className="section-lead">Overlay, theme, and how Keel behaves while a reply is generating.</p>
+
         <div className="setting-row">
           <span className="setting-label">Theme</span>
           <div className="setting-control">
@@ -143,25 +146,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
-        <div className="setting-row">
-          <span className="setting-label">End-of-session summary</span>
-          <button
-            type="button"
-            className="toggle"
-            aria-checked={showSessionSummary}
-            aria-label="End-of-session summary"
-            onClick={() => {
-              const next = !showSessionSummary;
-              setShowSessionSummary(next);
-              persist({ showSessionSummary: next });
-            }}
-          />
-        </div>
-      </section>
 
-      <section className="settings-section" aria-labelledby="settings-waiting">
-        <h2 id="settings-waiting">While ChatGPT responds</h2>
-        <p className="section-lead">Overlay, default mode, and how often it appears.</p>
         <div className="setting-row">
           <span className="setting-label">Overlay while ChatGPT generates</span>
           <button
@@ -176,6 +161,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             }}
           />
         </div>
+
         <div className="setting-row">
           <span className="setting-label">Default mode on session start</span>
           <div className="setting-control">
@@ -195,6 +181,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
+
         <div className="setting-row setting-row--stack">
           <div className="setting-label-block">
             <span className="setting-label" id="label-intensity">
@@ -219,6 +206,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
+
         <div className="setting-row setting-row--stack">
           <div className="setting-label-block">
             <span className="setting-label" id="label-trigger">
@@ -242,10 +230,27 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
+
+        <div className="setting-row">
+          <span className="setting-label">End-of-session summary</span>
+          <button
+            type="button"
+            className="toggle"
+            aria-checked={showSessionSummary}
+            aria-label="End-of-session summary"
+            onClick={() => {
+              const next = !showSessionSummary;
+              setShowSessionSummary(next);
+              persist({ showSessionSummary: next });
+            }}
+          />
+        </div>
       </section>
 
       <section className="settings-section" aria-labelledby="settings-games">
-        <h2 id="settings-games">Micro-games</h2>
+        <h2 id="settings-games" className="settings-category-title">
+          Games
+        </h2>
         <p className="section-lead">In Play mode, Keel picks one enabled game per wait. At least one stays on.</p>
         {GAME_OPTIONS.map((g) => (
           <div key={g.id} className="setting-row setting-row--stack">
@@ -269,7 +274,9 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
       </section>
 
       <section className="settings-section" aria-labelledby="settings-brain">
-        <h2 id="settings-brain">Brain mode</h2>
+        <h2 id="settings-brain" className="settings-category-title">
+          Brain mode
+        </h2>
         <p className="section-lead">
           Short multiple-choice prompts. All topics on by default; turn topics off to narrow the pool. Keel avoids
           repeating the last several questions when it can.

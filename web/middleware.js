@@ -12,7 +12,7 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  let response = NextResponse.next({
+  let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers
     }
@@ -20,32 +20,32 @@ export async function middleware(request) {
 
   const supabase = createServerClient(env.url, env.anonKey, {
     cookies: {
-      get(name) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name, value, options) {
-        request.cookies.set({ name, value, ...options });
-        response = NextResponse.next({
+      setAll(cookiesToSet, headers) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          request.cookies.set({ name, value, ...options });
+        });
+        supabaseResponse = NextResponse.next({
           request: {
             headers: request.headers
           }
         });
-        response.cookies.set({ name, value, ...options });
-      },
-      remove(name, options) {
-        request.cookies.set({ name, value: "", ...options });
-        response = NextResponse.next({
-          request: {
-            headers: request.headers
-          }
+        cookiesToSet.forEach(({ name, value, options }) => {
+          supabaseResponse.cookies.set(name, value, options);
         });
-        response.cookies.set({ name, value: "", ...options });
+        if (headers && typeof headers === "object") {
+          Object.entries(headers).forEach(([key, value]) => {
+            if (typeof value === "string") supabaseResponse.headers.set(key, value);
+          });
+        }
       }
     }
   });
 
   await supabase.auth.getUser();
-  return response;
+  return supabaseResponse;
 }
 
 export const config = {

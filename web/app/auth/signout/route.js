@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "../../../lib/supabase/server";
+import { createSupabaseRouteHandlerClient } from "../../../lib/supabase/route-client";
 
 export async function POST(request) {
-  const supabase = getSupabaseServerClient();
-  if (supabase) await supabase.auth.signOut();
-  const url = new URL("/login", request.url);
-  return NextResponse.redirect(url);
+  const requestUrl = new URL(request.url);
+  const loginUrl = new URL("/login", requestUrl.origin);
+  let response = NextResponse.redirect(loginUrl);
+
+  const supabase = createSupabaseRouteHandlerClient(request, response);
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
+
+  return response;
 }

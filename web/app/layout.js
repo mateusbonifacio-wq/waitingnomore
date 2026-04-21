@@ -2,6 +2,9 @@ import SiteNav from "../components/SiteNav";
 import ThemeBootstrap from "../components/ThemeBootstrap";
 import "./globals.css";
 
+/** Auth UI reads cookies; avoid serving a cached header as logged-out after sign-in. */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: {
     default: "Keel",

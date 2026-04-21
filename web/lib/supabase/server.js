@@ -12,18 +12,17 @@ export function getSupabaseServerClient() {
 
   return createServerClient(url, anonKey, {
     cookies: {
-      get(name) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name, value, options) {
+      setAll(cookiesToSet) {
         try {
-          cookieStore.set({ name, value, ...options });
-        } catch {}
-      },
-      remove(name, options) {
-        try {
-          cookieStore.set({ name, value: "", ...options });
-        } catch {}
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
+        } catch {
+          /* Server Components often cannot mutate cookies; middleware refreshes tokens. */
+        }
       }
     }
   });

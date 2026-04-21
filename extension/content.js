@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.19";
+  const IDLE_EXTENSION_VERSION = "1.0.20";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -220,20 +220,44 @@
 
   const BRAIN_RECENT_MAX = 10;
 
+  function brainFallbackQuestion(suffix) {
+    return {
+      id: `brain_fallback_${suffix}`,
+      topic: "logic",
+      question: "2 + 2 = ?",
+      answers: ["3", "4", "5"],
+      correct: 1
+    };
+  }
+
+  function isValidBrainQuestionShape(q) {
+    if (!q || typeof q !== "object") return false;
+    if (typeof q.question !== "string" || !String(q.question).trim()) return false;
+    const answers = q.answers;
+    if (!Array.isArray(answers) || answers.length < 2) return false;
+    const c = Number(q.correct);
+    if (!Number.isInteger(c) || c < 0 || c >= answers.length) return false;
+    for (let i = 0; i < answers.length; i++) {
+      if (typeof answers[i] !== "string") return false;
+    }
+    return true;
+  }
+
   function pickBrainQuestion() {
     const bank = getBrainBank();
     if (!bank) {
-      currentBrainQuestion = {
-        id: "fallback",
-        topic: "logic",
-        question: "2 + 2 = ?",
-        answers: ["3", "4", "5"],
-        correct: 1
-      };
+      currentBrainQuestion = brainFallbackQuestion("no_bank");
       return currentBrainQuestion;
     }
     const topics = activeBrainTopicIds();
-    let pool = bank.ALL_QUESTIONS.filter((q) => topics.includes(q.topic));
+    let pool = bank.ALL_QUESTIONS.filter((q) => q && topics.includes(q.topic) && isValidBrainQuestionShape(q));
+    if (!pool.length) {
+      pool = bank.ALL_QUESTIONS.filter((q) => q && isValidBrainQuestionShape(q));
+    }
+    if (!pool.length) {
+      currentBrainQuestion = brainFallbackQuestion("empty_bank");
+      return currentBrainQuestion;
+    }
     let candidates = pool.filter((q) => !recentBrainQuestionIds.includes(q.id));
     if (!candidates.length && pool.length) {
       recentBrainQuestionIds.splice(0, Math.ceil(recentBrainQuestionIds.length / 2));
@@ -241,17 +265,16 @@
     }
     if (!candidates.length) candidates = pool;
     if (!candidates.length) {
-      currentBrainQuestion = {
-        id: "fallback2",
-        topic: "logic",
-        question: "Next: 1, 2, 3, ?",
-        answers: ["4", "5", "6"],
-        correct: 0
-      };
+      currentBrainQuestion = brainFallbackQuestion("no_candidates");
       return currentBrainQuestion;
     }
     const item = candidates[Math.floor(Math.random() * candidates.length)];
-    recentBrainQuestionIds.push(item.id);
+    if (!isValidBrainQuestionShape(item)) {
+      currentBrainQuestion = brainFallbackQuestion("invalid_pick");
+      return currentBrainQuestion;
+    }
+    const id = typeof item.id === "string" && item.id ? item.id : `brain_${item.topic}_${Math.random().toString(36).slice(2, 9)}`;
+    recentBrainQuestionIds.push(id);
     while (recentBrainQuestionIds.length > BRAIN_RECENT_MAX) recentBrainQuestionIds.shift();
     currentBrainQuestion = item;
     return item;
@@ -665,15 +688,31 @@
 
   function renderBrainMode() {
     if (!currentBrainQuestion) pickBrainQuestion();
-    const item = currentBrainQuestion;
-    if (!item) return;
-    modeBody.innerHTML = `<div class="brain-question">${item.question}</div><div class="brain-answers"></div><div class="brain-feedback"></div>`;
-    const answersEl = modeBody.querySelector(".brain-answers");
-    const feedbackEl = modeBody.querySelector(".brain-feedback");
+    let item = currentBrainQuestion;
+    if (!item || !isValidBrainQuestionShape(item)) {
+      pickBrainQuestion();
+      item = currentBrainQuestion;
+    }
+    if (!item || !isValidBrainQuestionShape(item)) {
+      currentBrainQuestion = brainFallbackQuestion("render_guard");
+      item = currentBrainQuestion;
+    }
+
+    modeBody.replaceChildren();
+    const qEl = document.createElement("div");
+    qEl.className = "brain-question";
+    qEl.textContent = String(item.question);
+    const answersEl = document.createElement("div");
+    answersEl.className = "brain-answers";
+    const feedbackEl = document.createElement("div");
+    feedbackEl.className = "brain-feedback";
+    modeBody.append(qEl, answersEl, feedbackEl);
+
     item.answers.forEach((answer, index) => {
       const button = document.createElement("button");
+      button.type = "button";
       button.className = "brain-answer";
-      button.textContent = answer;
+      button.textContent = String(answer);
       button.addEventListener("click", () => {
         const isCorrect = index === item.correct;
         runtimeStats.brainAnswered += 1;
@@ -681,8 +720,14 @@
         feedbackEl.textContent = isCorrect ? "Correct" : "Incorrect";
         feedbackEl.classList.toggle("correct", isCorrect);
         feedbackEl.classList.toggle("incorrect", !isCorrect);
-        answersEl.querySelectorAll("button").forEach((btn) => (btn.disabled = true));
-        trackEvent("brain_answer", { correct: isCorrect, brainTopic: item.topic, brainQuestionId: item.id });
+        answersEl.querySelectorAll("button").forEach((btn) => {
+          btn.disabled = true;
+        });
+        trackEvent("brain_answer", {
+          correct: isCorrect,
+          brainTopic: item.topic,
+          brainQuestionId: typeof item.id === "string" ? item.id : "unknown"
+        });
         brainNextTimer = setTimeout(() => {
           pickBrainQuestion();
           renderBrainMode();

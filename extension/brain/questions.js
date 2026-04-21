@@ -89,7 +89,7 @@
       { q: "Which is a prime?", a: ["9", "11", "15"], c: 1 },
       { q: "A says “I always lie.” Consistent?", a: ["Yes", "No paradox", "Always true"], c: 1 },
       { q: "Cube has how many faces?", a: ["4", "6", "8"], c: 1 },
-      { q: "If A>B and B>C then?", a: ["A<C", "A>C", "Unknown"], c: 1 },
+      { q: "Tom is taller than Sue. Sue is taller than Pat. Is Tom taller than Pat?", a: ["Yes", "No", "Cannot tell"], c: 0 },
       { q: "Half of 30 plus 10?", a: ["25", "35", "20"], c: 0 },
       { q: "Which completes: red, orange, yellow, ?", a: ["Purple", "Green", "Pink"], c: 1 }
     ],

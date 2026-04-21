@@ -28,26 +28,31 @@ export default async function SiteNav() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="site-logo">
+        <Link href="/" className="site-logo" prefetch={false}>
           Keel
         </Link>
         <div className="site-header-actions">
           <nav className="site-nav" aria-label="Main">
             {links.map(({ href, label }) => (
-              <Link key={href} href={href} className="site-nav-link">
+              <Link key={href} href={href} className="site-nav-link" prefetch={false}>
                 {label}
               </Link>
             ))}
           </nav>
           {user ? (
-            <form action="/auth/signout" method="post">
-              <button type="submit" className="btn btn-ghost">
-                Logout
-              </button>
-            </form>
+            <div className="site-header-auth">
+              <span className="site-header-email" title={user.email || ""}>
+                {user.email ? user.email.split("@")[0] : "Account"}
+              </span>
+              <form action="/auth/signout" method="post">
+                <button type="submit" className="btn btn-ghost">
+                  Log out
+                </button>
+              </form>
+            </div>
           ) : (
-            <Link href="/login" className="btn btn-ghost">
-              Login
+            <Link href="/login?next=/settings" className="btn btn-ghost" prefetch={false}>
+              Sign in
             </Link>
           )}
           <ThemeToggle />
