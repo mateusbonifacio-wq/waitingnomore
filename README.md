@@ -67,7 +67,8 @@ This first version includes:
 - `profiles` (user record),
 - `user_settings` (per-user extension settings),
 - `extension_installs` (install/connect events from web install flow),
-- `idle_sessions` (ready for extension session upload).
+- `idle_sessions` (legacy session row shape; optional),
+- `events` — **game_played** and **brain_answer** rows (extension → `POST /api/events` with your Supabase JWT, pushed when you visit the Keel site signed in).
 
 ## Vercel Deployment (web only)
 

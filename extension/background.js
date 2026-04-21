@@ -62,6 +62,11 @@ const MESSAGE_GET_SETTINGS = "wnm-get-settings-v1";
 
 const THEME_STORAGE_KEY = "theme";
 
+/** Saved when user visits Keel web while signed in (webBridge). Used to POST /api/events from the service worker. */
+const KEEL_API_AUTH_KEY = "waitingnomore.keelApiAuth.v1";
+/** Pending { id, type, data, occurred_at } rows until upload succeeds. */
+const KEEL_OUTBOUND_EVENTS_KEY = "waitingnomore.keelOutboundEvents.v1";
+
 function readMergedSettingsFromStorage(callback) {
   chrome.storage.local.get([EXTENSION_SETTINGS_KEY, THEME_STORAGE_KEY], (result) => {
     if (chrome.runtime.lastError) {
@@ -134,12 +139,209 @@ function handleWebSettingsMessage(message, sendResponse) {
   return true;
 }
 
-chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
-  handleWebSettingsMessage(message, sendResponse)
-);
+/**
+ * @param {unknown} ev
+ * @returns {{ id: string, type: string, data: object, occurred_at: string } | null}
+ */
+function sanitizeOutboundEvent(ev) {
+  if (!ev || typeof ev !== "object") return null;
+  const type = ev.type;
+  if (type !== "game_played" && type !== "brain_answer") return null;
+  const data = ev.data;
+  if (!data || typeof data !== "object") return null;
+  if (type === "game_played") {
+    if (!MICRO_GAME_IDS.has(data.game) || typeof data.score !== "number" || !Number.isFinite(data.score)) return null;
+  } else {
+    const topic = typeof data.topic === "string" ? data.topic.trim() : "";
+    if (!topic || topic.length > 64 || typeof data.correct !== "boolean") return null;
+  }
+  const id = typeof ev.id === "string" && ev.id ? ev.id : `kce_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const occurred_at =
+    typeof ev.occurred_at === "string" && ev.occurred_at ? ev.occurred_at : new Date().toISOString();
+  return { id, type, data, occurred_at };
+}
+
+function isAllowedKeelApiOrigin(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return true;
+    if (u.hostname.endsWith(".vercel.app")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function flushKeelOutboundQueue() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([KEEL_OUTBOUND_EVENTS_KEY, KEEL_API_AUTH_KEY], (r) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, reason: chrome.runtime.lastError.message });
+        return;
+      }
+      const auth = r[KEEL_API_AUTH_KEY];
+      let queue = r[KEEL_OUTBOUND_EVENTS_KEY];
+      if (!Array.isArray(queue)) queue = [];
+      if (!auth || typeof auth !== "object" || !auth.accessToken || !auth.apiOrigin) {
+        resolve({ ok: false, reason: "no_auth" });
+        return;
+      }
+      if (!isAllowedKeelApiOrigin(auth.apiOrigin)) {
+        resolve({ ok: false, reason: "bad_origin" });
+        return;
+      }
+      if (queue.length === 0) {
+        resolve({ ok: true, sent: 0 });
+        return;
+      }
+      const batch = queue.slice(0, 40);
+      const origin = String(auth.apiOrigin).replace(/\/$/, "");
+      const body = JSON.stringify({
+        events: batch.map((ev) => ({
+          type: ev.type,
+          data: ev.data,
+          occurred_at: ev.occurred_at
+        }))
+      });
+      fetch(`${origin}/api/events`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.accessToken}`
+        },
+        body
+      })
+        .then(async (res) => {
+          if (res.status === 401) {
+            await new Promise((r2) => {
+              chrome.storage.local.remove(KEEL_API_AUTH_KEY, () => r2());
+            });
+            return { ok: false, reason: "unauthorized" };
+          }
+          if (!res.ok) {
+            const t = await res.text();
+            return { ok: false, reason: `http_${res.status}`, detail: t.slice(0, 200) };
+          }
+          const remaining = queue.slice(batch.length);
+          await new Promise((r2) => {
+            chrome.storage.local.set({ [KEEL_OUTBOUND_EVENTS_KEY]: remaining }, () => r2());
+          });
+          return { ok: true, sent: batch.length };
+        })
+        .then(resolve)
+        .catch((e) => resolve({ ok: false, reason: "network", detail: String(e && e.message ? e.message : e) }));
+    });
+  });
+}
+
+/**
+ * @param {unknown} event
+ * @param {(r: unknown) => void} sendResponse
+ */
+function pushKeelEventAndFlush(event, sendResponse) {
+  const sanitized = sanitizeOutboundEvent(event);
+  if (!sanitized) {
+    sendResponse({ ok: false, error: "bad_event" });
+    return;
+  }
+  chrome.storage.local.get([KEEL_OUTBOUND_EVENTS_KEY], (r) => {
+    if (chrome.runtime.lastError) {
+      sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      return;
+    }
+    let queue = r[KEEL_OUTBOUND_EVENTS_KEY];
+    if (!Array.isArray(queue)) queue = [];
+    queue.push(sanitized);
+    if (queue.length > 400) queue = queue.slice(-400);
+    chrome.storage.local.set({ [KEEL_OUTBOUND_EVENTS_KEY]: queue }, () => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+        return;
+      }
+      flushKeelOutboundQueue().then(sendResponse);
+    });
+  });
+}
+
+/**
+ * @param {unknown} message
+ * @param {(r: unknown) => void} sendResponse
+ */
+function handleKeelApiAuthStore(message, sendResponse) {
+  const apiOrigin = typeof message.apiOrigin === "string" ? message.apiOrigin.trim() : "";
+  const accessToken = typeof message.accessToken === "string" ? message.accessToken.trim() : "";
+  if (!apiOrigin || !accessToken || !isAllowedKeelApiOrigin(apiOrigin)) {
+    sendResponse({ ok: false, error: "missing_or_invalid_fields" });
+    return;
+  }
+  const rec = {
+    accessToken,
+    refreshToken: typeof message.refreshToken === "string" ? message.refreshToken : null,
+    expiresAt: typeof message.expiresAt === "number" ? message.expiresAt : null,
+    apiOrigin
+  };
+  chrome.storage.local.set({ [KEEL_API_AUTH_KEY]: rec }, () => {
+    if (chrome.runtime.lastError) {
+      sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      return;
+    }
+    flushKeelOutboundQueue().then(sendResponse);
+  });
+}
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (message?.type === "wnm-push-keel-api-auth") {
+    if (!sender.url || !isAllowedKeelApiOrigin(sender.url)) {
+      sendResponse({ ok: false, error: "origin_not_allowed" });
+      return false;
+    }
+    handleKeelApiAuthStore(message, sendResponse);
+    return true;
+  }
+  if (message?.type === "wnm-clear-keel-api-auth") {
+    if (!sender.url || !isAllowedKeelApiOrigin(sender.url)) {
+      sendResponse({ ok: false, error: "origin_not_allowed" });
+      return false;
+    }
+    chrome.storage.local.remove(KEEL_API_AUTH_KEY, () => {
+      if (chrome.runtime.lastError) sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      else sendResponse({ ok: true });
+    });
+    return true;
+  }
+  return handleWebSettingsMessage(message, sendResponse);
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const t = message?.type;
+  if (t === "wnm-push-keel-event") {
+    if (!sender || sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, error: "invalid_sender" });
+      return false;
+    }
+    pushKeelEventAndFlush(message.event, sendResponse);
+    return true;
+  }
+  if (t === "wnm-push-keel-api-auth") {
+    if (!sender || sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, error: "invalid_sender" });
+      return false;
+    }
+    handleKeelApiAuthStore(message, sendResponse);
+    return true;
+  }
+  if (t === "wnm-clear-keel-api-auth") {
+    if (!sender || sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, error: "invalid_sender" });
+      return false;
+    }
+    chrome.storage.local.remove(KEEL_API_AUTH_KEY, () => {
+      if (chrome.runtime.lastError) sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      else sendResponse({ ok: true });
+    });
+    return true;
+  }
   if (t !== MESSAGE_TYPE && t !== MESSAGE_GET_THEME && t !== MESSAGE_GET_SETTINGS) {
     return false;
   }

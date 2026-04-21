@@ -1,5 +1,6 @@
 import SiteNav from "../components/SiteNav";
 import ThemeBootstrap from "../components/ThemeBootstrap";
+import ExtensionAuthSync from "../components/ExtensionAuthSync";
 import "./globals.css";
 
 /** Auth UI reads cookies; avoid serving a cached header as logged-out after sign-in. */
@@ -18,6 +19,7 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeBootstrap />
+        <ExtensionAuthSync />
         <SiteNav />
         {children}
         <footer className="site-footer">

@@ -74,6 +74,26 @@ create table if not exists public.idle_sessions (
 create index if not exists idx_extension_installs_user_created_at on public.extension_installs(user_id, created_at desc);
 create index if not exists idx_idle_sessions_user_timestamp on public.idle_sessions(user_id, timestamp desc);
 
+-- Keel analytics: granular game + brain events (extension POSTs via /api/events).
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null check (type in ('game_played', 'brain_answer')),
+  data jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default timezone('utc', now()),
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists idx_events_user_occurred on public.events (user_id, occurred_at desc);
+create index if not exists idx_events_user_type on public.events (user_id, type);
+
+alter table public.events enable row level security;
+
+drop policy if exists "events_select_own" on public.events;
+create policy "events_select_own" on public.events for select using (auth.uid() = user_id);
+drop policy if exists "events_insert_own" on public.events;
+create policy "events_insert_own" on public.events for insert with check (auth.uid() = user_id);
+
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at before update on public.profiles for each row execute function public.set_updated_at();
 drop trigger if exists trg_user_settings_updated_at on public.user_settings;

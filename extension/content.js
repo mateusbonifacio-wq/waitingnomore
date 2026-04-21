@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.22";
+  const IDLE_EXTENSION_VERSION = "1.0.23";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -427,6 +427,18 @@
     void persistence.enqueueEvent(eventRecord);
   }
 
+  /** Queue game/brain analytics for upload to Keel web (background → /api/events). */
+  function pushKeelCloudEvent(type, data) {
+    if (!globalThis.chrome?.runtime?.sendMessage) return;
+    const event = {
+      id: `kce_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      type,
+      data,
+      occurred_at: new Date().toISOString()
+    };
+    chrome.runtime.sendMessage({ type: "wnm-push-keel-event", event }, () => void chrome.runtime.lastError);
+  }
+
   function createSessionRecord(summary, generationEndedSuccessfully) {
     const avgRt = summary.averageReactionMs;
     const modeKey = summary.sessionMode || currentMode;
@@ -738,6 +750,7 @@
           brainTopic: item.topic,
           brainQuestionId: typeof item.id === "string" ? item.id : "unknown"
         });
+        pushKeelCloudEvent("brain_answer", { topic: item.topic, correct: isCorrect });
         brainNextTimer = setTimeout(() => {
           pickBrainQuestion();
           renderBrainMode();
@@ -835,6 +848,9 @@
       };
     }
     const sessionRecord = createSessionRecord(summary, generationEndedSuccessfully);
+    if (modeKey === MODES.PLAY) {
+      pushKeelCloudEvent("game_played", { game: sessionPlayGameId, score: Number(summary.hits) || 0 });
+    }
     trackEvent("session_ended", {
       sessionMode: summary.sessionMode,
       hits: summary.hits,

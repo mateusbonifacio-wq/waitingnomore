@@ -41,6 +41,32 @@
         const err = chrome.runtime.lastError?.message || null;
         reply({ ok: !err, response: response || null, error: err });
       });
+      return;
+    }
+
+    if (msg.kind === "push-keel-api-auth") {
+      chrome.runtime.sendMessage(
+        {
+          type: "wnm-push-keel-api-auth",
+          accessToken: msg.accessToken,
+          refreshToken: msg.refreshToken || null,
+          expiresAt: msg.expiresAt || null,
+          apiOrigin: msg.apiOrigin
+        },
+        (response) => {
+          const err = chrome.runtime.lastError?.message || null;
+          reply({ ok: !err && response && response.ok !== false, response: response || null, error: err });
+        }
+      );
+      return;
+    }
+
+    if (msg.kind === "clear-keel-api-auth") {
+      chrome.runtime.sendMessage({ type: "wnm-clear-keel-api-auth" }, (response) => {
+        const err = chrome.runtime.lastError?.message || null;
+        reply({ ok: !err && response && response.ok !== false, response: response || null, error: err });
+      });
+      return;
     }
   });
 })();
