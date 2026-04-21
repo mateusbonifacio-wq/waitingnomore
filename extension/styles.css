@@ -617,29 +617,52 @@
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #c7d2fe 0%, #6366f1 64%, #4338ca 100%);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 18px rgba(99, 102, 241, 0.3);
-  transform: scale(0.88);
+  transform: scale(0.86);
   opacity: 0.72;
-  /* ~2.0s inhale to peak, ~2.5s exhale — 4.5s total, ease-in-out, infinite while generating */
-  animation: focus-breathe 4.5s ease-in-out infinite;
+  /*
+   * Natural breath while generating (5.5s / cycle):
+   * grow = inhale 2.0s → hold ~0.4s → shrink = exhale 2.7s (longer) → hold ~0.4s.
+   * Overall timing is linear so per-keyframe animation-timing-function controls each phase;
+   * inhale/exhale use ease-in-out; holds are flat between identical values.
+   */
+  animation: focus-breathe 5.5s linear infinite;
   will-change: transform, opacity;
 }
 
 .focus-breath--paused {
   animation: none;
-  transform: scale(0.92);
+  transform: scale(0.86);
   opacity: 0.38;
 }
 
 @keyframes focus-breathe {
-  0%,
-  100% {
-    transform: scale(0.88);
+  /* Exhaled + brief hold (end of cycle matches start for a seamless loop). */
+  0% {
+    transform: scale(0.86);
     opacity: 0.72;
+    animation-timing-function: ease-in-out;
   }
-  /* 2s / 4.5s ≈ 44.44% — end of inhale */
-  44.44% {
-    transform: scale(1.62);
+  /* After 2.0s: peak inhale (largest). */
+  36.364% {
+    transform: scale(1.5);
     opacity: 1;
+    animation-timing-function: linear;
+  }
+  /* After 2.4s: end of post-inhale hold (still peak). */
+  43.636% {
+    transform: scale(1.5);
+    opacity: 1;
+    animation-timing-function: ease-in-out;
+  }
+  /* After 5.1s: end of exhale (smallest). */
+  92.727% {
+    transform: scale(0.86);
+    opacity: 0.72;
+    animation-timing-function: linear;
+  }
+  100% {
+    transform: scale(0.86);
+    opacity: 0.72;
   }
 }
 
