@@ -409,6 +409,13 @@ table.data-table {
   font-size: 1rem;
 }
 
+.settings-section .section-lead {
+  margin: -8px 0 14px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .setting-row {
   display: flex;
   flex-wrap: wrap;

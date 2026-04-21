@@ -1,5 +1,6 @@
 /**
  * Falling ball — tap before it hits the bottom.
+ * Physics tuned for a quick, fair bounce; hits register in the lower band with a short cooldown.
  */
 (() => {
   globalThis.__KEEL_GAME_CREATORS = globalThis.__KEEL_GAME_CREATORS || {};
@@ -8,10 +9,11 @@
     let rafId = 0;
     let destroyed = false;
     let onPointerDown = null;
+    let layerEl = null;
 
-    function tuningScale() {
-      const t = ctx.getPlayModeTuning();
-      return t.step >= 18 ? 1.15 : t.step <= 12 ? 0.88 : 1;
+    function physicsClock() {
+      const pace = globalThis.__KEEL_playPace;
+      return typeof pace?.intensityClockRatio === "function" ? pace.intensityClockRatio(ctx) : 1;
     }
 
     return {
@@ -22,20 +24,33 @@
           '<div class="keep-alive-layer" aria-label="Keep the dot up">' +
           '<div class="keep-alive-ball" aria-hidden="true"></div>' +
           '<p class="keep-alive-hint">Tap when it drops low</p></div>';
+        layerEl = area.querySelector(".keep-alive-layer");
         const ball = area.querySelector(".keep-alive-ball");
         const r = 9;
-        let x = area.clientWidth * 0.5;
+        const clock = physicsClock();
+        /** Gentler fall, stronger tap — feels controllable in ~1–2s. */
+        const g = 0.2 * clock;
+        const kick = -6.4 * clock;
+        const maxDownVy = 7.2 * clock;
+        const maxUpVy = 8.5;
+        let x = 0;
         let y = 14;
         let vy = 0;
-        const g = 0.34 * tuningScale();
-        const kick = -5.2 * tuningScale();
         let lastSaveMs = 0;
         let dangerEnteredAt = 0;
+        let started = false;
+
+        function layoutSize() {
+          const w = Math.max(56, area.clientWidth || 0);
+          const h = Math.max(72, area.clientHeight || 0);
+          return { w, h, floor: h - r - 4, dangerY: h * 0.46 };
+        }
 
         function resetBall() {
-          x = 12 + Math.random() * Math.max(8, area.clientWidth - 24);
-          y = 12 + Math.random() * 18;
-          vy = 0.4;
+          const { w, h } = layoutSize();
+          x = 12 + Math.random() * Math.max(8, w - 24);
+          y = 12 + Math.random() * Math.min(22, h * 0.22);
+          vy = 0.35 * clock;
           dangerEnteredAt = 0;
         }
 
@@ -45,11 +60,16 @@
             rafId = window.requestAnimationFrame(tick);
             return;
           }
+          const { w, h, floor, dangerY } = layoutSize();
           vy += g;
+          vy = Math.min(maxDownVy, vy);
           y += vy;
-          const dangerY = area.clientHeight * 0.52;
-          if (dangerEnteredAt === 0 && y > dangerY && vy > 0) dangerEnteredAt = performance.now();
-          const floor = area.clientHeight - r - 4;
+          if (dangerEnteredAt > 0 && (y < dangerY - 12 || vy < -0.05)) {
+            dangerEnteredAt = 0;
+          }
+          if (dangerEnteredAt === 0 && y > dangerY && vy > 0.12) {
+            dangerEnteredAt = performance.now();
+          }
           if (y >= floor) {
             ctx.runtimeStats.playMisses += 1;
             ctx.trackEvent("play_miss", {
@@ -60,40 +80,61 @@
             ctx.updateHud();
             resetBall();
           }
-          ball.style.left = `${Math.max(r, Math.min(area.clientWidth - r, x)) - r}px`;
-          ball.style.top = `${Math.max(r, y) - r}px`;
+          ball.style.left = `${Math.max(r, Math.min(w - r, x)) - r}px`;
+          ball.style.top = `${Math.max(r, Math.min(h - r, y)) - r}px`;
           rafId = window.requestAnimationFrame(tick);
         }
 
-        onPointerDown = () => {
+        onPointerDown = (_e) => {
           if (destroyed || !ctx.isPlayMode() || !ctx.isGenerating() || ctx.isCardHidden()) return;
-          vy += kick;
+          const { w, h, floor, dangerY } = layoutSize();
           const now = performance.now();
-          const dangerY = area.clientHeight * 0.52;
-          if (y > dangerY && dangerEnteredAt > 0 && now - lastSaveMs > 280) {
+          vy += kick;
+          vy = Math.max(-maxUpVy, vy);
+
+          const inDanger = y > dangerY - 4 && vy > 0.08;
+          if (inDanger && now - lastSaveMs > 110) {
             lastSaveMs = now;
-            const reactionMs = Math.max(40, Math.round(now - dangerEnteredAt));
+            const reactionMs =
+              dangerEnteredAt > 0 ? Math.max(35, Math.round(now - dangerEnteredAt)) : Math.round(55 + Math.random() * 40);
             dangerEnteredAt = 0;
             ctx.runtimeStats.reactionMsSamples.push(reactionMs);
             ctx.runtimeStats.hits += 1;
             ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs });
             ctx.updateHud();
           }
+
+          if (y >= floor - 0.5) {
+            y = Math.min(y, floor - 1);
+          }
         };
 
-        area.querySelector(".keep-alive-layer").addEventListener("pointerdown", onPointerDown, { passive: true });
-        resetBall();
-        ctx.updateHud();
-        rafId = window.requestAnimationFrame(tick);
+        layerEl.addEventListener("pointerdown", onPointerDown, { passive: true });
+
+        function startLoop() {
+          if (destroyed || !area.isConnected) return;
+          resetBall();
+          ctx.updateHud();
+          rafId = window.requestAnimationFrame(tick);
+        }
+
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            if (destroyed || started) return;
+            started = true;
+            startLoop();
+          });
+        });
       },
       destroy() {
         destroyed = true;
         if (rafId) cancelAnimationFrame(rafId);
         rafId = 0;
-        if (ctx.area && onPointerDown) {
-          const layer = ctx.area.querySelector(".keep-alive-layer");
-          if (layer) layer.removeEventListener("pointerdown", onPointerDown);
+        if (layerEl && onPointerDown) {
+          layerEl.removeEventListener("pointerdown", onPointerDown);
         }
+        layerEl = null;
+        onPointerDown = null;
         if (ctx.area) ctx.area.replaceChildren();
       }
     };

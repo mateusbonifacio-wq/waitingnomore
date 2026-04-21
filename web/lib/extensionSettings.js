@@ -231,6 +231,7 @@ export function applyWebDocumentTheme(theme) {
 /** @typedef {"play" | "brain" | "focus"} SessionMode */
 /** @typedef {"light" | "dark"} ThemeMode */
 /** @typedef {"current" | "keep_alive" | "quick_pattern" | "micro_memory"} MicroGameId */
+/** @typedef {"general_knowledge"|"pop_culture"|"science"|"geography"|"logic"|"fun_random"} BrainTopicId */
 
 /**
  * @typedef {Object} ExtensionSettingsV1
@@ -243,6 +244,7 @@ export function applyWebDocumentTheme(theme) {
  * @property {number} smartTriggerMinGenerationSec
  * @property {ThemeMode} themeMode
  * @property {MicroGameId[]} enabledGames
+ * @property {BrainTopicId[]} enabledTopics — empty = all topics; otherwise restrict pool
  */
 
 /** @type {ExtensionSettingsV1} */
@@ -255,7 +257,8 @@ export const defaultExtensionSettings = {
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
-  enabledGames: ["current"]
+  enabledGames: ["current"],
+  enabledTopics: []
 };
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
@@ -263,6 +266,33 @@ const TRIGGER = new Set(["always", "smart"]);
 const MODE = new Set(["play", "brain", "focus"]);
 const THEME = new Set(["light", "dark"]);
 const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+
+/** @type {{ id: string, label: string, hint: string }[]} */
+export const BRAIN_TOPIC_OPTIONS = [
+  { id: "general_knowledge", label: "General knowledge", hint: "Facts, world basics." },
+  { id: "pop_culture", label: "Pop culture", hint: "Games, films, music memes." },
+  { id: "science", label: "Science", hint: "Physics, biology, chemistry lite." },
+  { id: "geography", label: "Geography", hint: "Places, capitals, Earth." },
+  { id: "logic", label: "Logic & riddles", hint: "Deduction, numbers, patterns." },
+  { id: "fun_random", label: "Fun & random", hint: "Light brain breaks." }
+];
+
+const BRAIN_TOPIC_ID_SET = new Set(BRAIN_TOPIC_OPTIONS.map((t) => t.id));
+
+/**
+ * Canonical storage: `[]` = no filter (all topics). Non-empty = only those topics.
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+export function normalizeEnabledTopicsList(raw) {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const out = [];
+  for (const x of raw) {
+    if (typeof x === "string" && BRAIN_TOPIC_ID_SET.has(x) && !out.includes(x)) out.push(x);
+  }
+  return out;
+}
 
 export function normalizeEnabledGamesList(raw) {
   if (!Array.isArray(raw)) return ["current"];
@@ -285,6 +315,7 @@ export function coerceSettings(raw) {
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
+  base.enabledTopics = normalizeEnabledTopicsList(raw.enabledTopics);
   return base;
 }
 

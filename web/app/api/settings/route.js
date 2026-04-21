@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { defaultExtensionSettings, normalizeEnabledGamesList } from "../../../lib/extensionSettings";
+import {
+  defaultExtensionSettings,
+  normalizeEnabledGamesList,
+  normalizeEnabledTopicsList
+} from "../../../lib/extensionSettings";
 import { getSupabaseServerClient } from "../../../lib/supabase/server";
 
 const SETTINGS_COLUMNS =
-  "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,updated_at";
+  "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,enabled_topics,updated_at";
 
 function mapDbToSettings(row) {
   if (!row) return { ...defaultExtensionSettings };
@@ -16,7 +20,8 @@ function mapDbToSettings(row) {
     triggerWhen: row.trigger_when,
     smartTriggerMinGenerationSec: row.smart_trigger_min_generation_sec,
     themeMode: row.theme_mode,
-    enabledGames: normalizeEnabledGamesList(row.enabled_games)
+    enabledGames: normalizeEnabledGamesList(row.enabled_games),
+    enabledTopics: normalizeEnabledTopicsList(row.enabled_topics)
   };
 }
 
@@ -29,7 +34,8 @@ function mapBodyToDb(payload) {
     trigger_when: payload.triggerWhen,
     smart_trigger_min_generation_sec: payload.smartTriggerMinGenerationSec,
     theme_mode: payload.themeMode,
-    enabled_games: normalizeEnabledGamesList(payload.enabledGames)
+    enabled_games: normalizeEnabledGamesList(payload.enabledGames),
+    enabled_topics: normalizeEnabledTopicsList(payload.enabledTopics)
   };
 }
 

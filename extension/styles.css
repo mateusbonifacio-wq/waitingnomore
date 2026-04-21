@@ -199,6 +199,7 @@
   background: rgba(255, 255, 255, 0.035);
   overflow: hidden;
   contain: layout style paint;
+  pointer-events: auto;
 }
 
 .keep-alive-layer {
@@ -206,6 +207,7 @@
   inset: 0;
   cursor: pointer;
   touch-action: manipulation;
+  pointer-events: auto;
 }
 
 .keep-alive-ball {
@@ -231,7 +233,18 @@
   user-select: none;
 }
 
-.quick-pattern,
+/* Grid keeps the answer pad visible; flex+flex:1 could squeeze buttons under overflow:hidden. */
+.quick-pattern {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 6px;
+  align-items: stretch;
+  pointer-events: auto;
+}
+
 .micro-memory {
   position: absolute;
   inset: 0;
@@ -243,7 +256,17 @@
   padding: 6px;
 }
 
-.quick-pattern-display,
+.quick-pattern-display {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #f4f4f5;
+  user-select: none;
+}
+
 .micro-memory-flash {
   flex: 1;
   display: flex;
@@ -255,7 +278,14 @@
   user-select: none;
 }
 
-.quick-pattern-pad,
+.quick-pattern-pad {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  min-height: 68px;
+  align-self: stretch;
+}
+
 .micro-memory-pad {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -266,6 +296,7 @@
 .micro-memory-btn {
   font-size: 16px;
   padding: 6px 8px;
+  touch-action: manipulation;
 }
 
 .play-target {
@@ -636,6 +667,16 @@
 #idle-time-overlay-root.idle-time-root--theme-light .play-area {
   border-color: rgba(15, 23, 42, 0.18);
   background: rgba(99, 102, 241, 0.06);
+}
+
+#idle-time-overlay-root.idle-time-root--theme-light .quick-pattern-display,
+#idle-time-overlay-root.idle-time-root--theme-light .micro-memory-flash {
+  color: #0f172a;
+  text-shadow: none;
+}
+
+#idle-time-overlay-root.idle-time-root--theme-light .keep-alive-hint {
+  color: rgba(15, 23, 42, 0.62);
 }
 
 #idle-time-overlay-root.idle-time-root--theme-light .brain-question {

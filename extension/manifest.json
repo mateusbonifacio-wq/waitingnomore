@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Keel",
-  "version": "1.0.16",
+  "version": "1.0.19",
   "description": "Keel is what keeps you steady when you start to drift. Calm overlay while ChatGPT or Gemini generates.",
   "permissions": ["storage"],
   "action": {
@@ -31,11 +31,13 @@
       "js": [
         "sites/chatgpt-generation.js",
         "games/registry.js",
+        "games/play-pace.js",
         "games/current.js",
         "games/keep-alive.js",
         "games/quick-pattern.js",
         "games/micro-memory.js",
         "games/create-micro-game.js",
+        "brain/questions.js",
         "content.js"
       ],
       "css": ["styles.css"],
@@ -46,11 +48,13 @@
       "js": [
         "sites/gemini-generation.js",
         "games/registry.js",
+        "games/play-pace.js",
         "games/current.js",
         "games/keep-alive.js",
         "games/quick-pattern.js",
         "games/micro-memory.js",
         "games/create-micro-game.js",
+        "brain/questions.js",
         "content.js"
       ],
       "css": ["styles.css"],

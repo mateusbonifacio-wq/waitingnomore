@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
+  BRAIN_TOPIC_OPTIONS,
   defaultExtensionSettings,
   EXTENSION_SETTINGS_STORAGE_KEY,
   loadExtensionSettings,
   normalizeEnabledGamesList,
+  normalizeEnabledTopicsList,
   saveExtensionSettings
 } from "../lib/extensionSettings";
 
@@ -16,6 +18,8 @@ const GAME_OPTIONS = [
   { id: "micro_memory", label: "Micro memory", hint: "Flash of symbols, pick the pair you saw." }
 ];
 
+const BRAIN_TOPIC_IDS = BRAIN_TOPIC_OPTIONS.map((t) => t.id);
+
 export default function SettingsForm({ isAuthenticated = false, initialCloudSettings = null }) {
   const [ready, setReady] = useState(false);
   const [overlayWhileGenerating, setOverlayWhileGenerating] = useState(defaultExtensionSettings.overlayWhileGenerating);
@@ -25,6 +29,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
   const [triggerWhen, setTriggerWhen] = useState(defaultExtensionSettings.triggerWhen);
   const [themeMode, setThemeMode] = useState(defaultExtensionSettings.themeMode);
   const [enabledGames, setEnabledGames] = useState(defaultExtensionSettings.enabledGames);
+  const [enabledTopics, setEnabledTopics] = useState(defaultExtensionSettings.enabledTopics);
 
   useEffect(() => {
     const s = loadExtensionSettings();
@@ -35,6 +40,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
     setTriggerWhen(s.triggerWhen);
     setThemeMode(s.themeMode);
     setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
+    setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     setReady(true);
   }, []);
 
@@ -48,6 +54,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
     setTriggerWhen(s.triggerWhen || defaultExtensionSettings.triggerWhen);
     setThemeMode(s.themeMode || defaultExtensionSettings.themeMode);
     setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
+    setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     void saveExtensionSettings(s);
   }, [initialCloudSettings]);
 
@@ -62,6 +69,7 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
       if (s.triggerWhen) setTriggerWhen(s.triggerWhen);
       if (s.themeMode === "light" || s.themeMode === "dark") setThemeMode(s.themeMode);
       if (Array.isArray(s.enabledGames)) setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
+      if (Array.isArray(s.enabledTopics)) setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     }
     window.addEventListener("wnm-settings-changed", onWnmSettings);
     return () => window.removeEventListener("wnm-settings-changed", onWnmSettings);
@@ -86,14 +94,37 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
     void persist({ enabledGames: normalized });
   }
 
+  function topicToggleOn(topicId) {
+    if (enabledTopics.length === 0) return true;
+    return enabledTopics.includes(topicId);
+  }
+
+  function toggleBrainTopic(topicId) {
+    let next;
+    if (enabledTopics.length === 0) {
+      next = BRAIN_TOPIC_IDS.filter((id) => id !== topicId);
+    } else if (enabledTopics.includes(topicId)) {
+      next = enabledTopics.filter((id) => id !== topicId);
+    } else {
+      next = [...enabledTopics, topicId];
+    }
+    if (next.length === 0 || next.length >= BRAIN_TOPIC_IDS.length) {
+      next = [];
+    }
+    const normalized = normalizeEnabledTopicsList(next);
+    setEnabledTopics(normalized);
+    void persist({ enabledTopics: normalized });
+  }
+
   if (!ready) {
     return <p className="muted-note">Loading preferences…</p>;
   }
 
   return (
     <>
-      <section className="settings-section" aria-labelledby="settings-appearance">
-        <h2 id="settings-appearance">Appearance</h2>
+      <section className="settings-section" aria-labelledby="settings-general">
+        <h2 id="settings-general">General</h2>
+        <p className="section-lead">Theme and session wrap-up.</p>
         <div className="setting-row">
           <span className="setting-label">Theme</span>
           <div className="setting-control">
@@ -112,10 +143,25 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
+        <div className="setting-row">
+          <span className="setting-label">End-of-session summary</span>
+          <button
+            type="button"
+            className="toggle"
+            aria-checked={showSessionSummary}
+            aria-label="End-of-session summary"
+            onClick={() => {
+              const next = !showSessionSummary;
+              setShowSessionSummary(next);
+              persist({ showSessionSummary: next });
+            }}
+          />
+        </div>
       </section>
 
-      <section className="settings-section" aria-labelledby="settings-extension">
-        <h2 id="settings-extension">Extension</h2>
+      <section className="settings-section" aria-labelledby="settings-waiting">
+        <h2 id="settings-waiting">While ChatGPT responds</h2>
+        <p className="section-lead">Overlay, default mode, and how often it appears.</p>
         <div className="setting-row">
           <span className="setting-label">Overlay while ChatGPT generates</span>
           <button
@@ -149,14 +195,10 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
             </select>
           </div>
         </div>
-      </section>
-
-      <section className="settings-section" aria-labelledby="settings-play">
-        <h2 id="settings-play">Play mode</h2>
         <div className="setting-row setting-row--stack">
           <div className="setting-label-block">
             <span className="setting-label" id="label-intensity">
-              Intensity
+              Play intensity
             </span>
             <span className="setting-hint">Targets, visibility, and pace — calmer to sharper.</span>
           </div>
@@ -203,10 +245,8 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
       </section>
 
       <section className="settings-section" aria-labelledby="settings-games">
-        <h2 id="settings-games">Games</h2>
-        <p className="setting-hint" style={{ marginTop: 0, marginBottom: 12 }}>
-          While a reply generates, Keel picks one of the games you enable here (random each time). At least one stays on.
-        </p>
+        <h2 id="settings-games">Micro-games</h2>
+        <p className="section-lead">In Play mode, Keel picks one enabled game per wait. At least one stays on.</p>
         {GAME_OPTIONS.map((g) => (
           <div key={g.id} className="setting-row setting-row--stack">
             <div className="setting-label-block">
@@ -228,30 +268,39 @@ export default function SettingsForm({ isAuthenticated = false, initialCloudSett
         ))}
       </section>
 
-      <section className="settings-section" aria-labelledby="settings-session">
-        <h2 id="settings-session">Session</h2>
-        <div className="setting-row">
-          <span className="setting-label">End-of-session summary</span>
-          <button
-            type="button"
-            className="toggle"
-            aria-checked={showSessionSummary}
-            aria-label="End-of-session summary"
-            onClick={() => {
-              const next = !showSessionSummary;
-              setShowSessionSummary(next);
-              persist({ showSessionSummary: next });
-            }}
-          />
-        </div>
+      <section className="settings-section" aria-labelledby="settings-brain">
+        <h2 id="settings-brain">Brain mode</h2>
+        <p className="section-lead">
+          Short multiple-choice prompts. All topics on by default; turn topics off to narrow the pool. Keel avoids
+          repeating the last several questions when it can.
+        </p>
+        {BRAIN_TOPIC_OPTIONS.map((t) => (
+          <div key={t.id} className="setting-row setting-row--stack">
+            <div className="setting-label-block">
+              <span className="setting-label" id={`label-brain-${t.id}`}>
+                {t.label}
+              </span>
+              <span className="setting-hint">{t.hint}</span>
+            </div>
+            <div className="setting-control">
+              <button
+                type="button"
+                className="toggle"
+                aria-labelledby={`label-brain-${t.id}`}
+                aria-checked={topicToggleOn(t.id)}
+                onClick={() => toggleBrainTopic(t.id)}
+              />
+            </div>
+          </div>
+        ))}
       </section>
 
       <p className="muted-note">
-        Saved as <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage. With{" "}
-        <code>NEXT_PUBLIC_EXTENSION_ID</code> set (from <code>chrome://extensions</code>), changes push to Keel via{" "}
-        <code>chrome.storage.local</code> — on ChatGPT, the strip and theme update without reloading the tab. Default
-        session mode and summary apply on the <strong>next</strong> generation. If push fails, use Keel{" "}
-        <strong>Options</strong> or add this site under <code>externally_connectable</code> in the extension manifest.
+        Preferences save to <code>{EXTENSION_SETTINGS_STORAGE_KEY}</code> in this site&apos;s localStorage. With{" "}
+        <code>NEXT_PUBLIC_EXTENSION_ID</code> set, updates also reach Keel on ChatGPT via{" "}
+        <code>chrome.storage.local</code> (strip and theme refresh without reloading). Default mode and summary apply on
+        the next generation. If sync fails, use Keel <strong>Options</strong> or add this origin under{" "}
+        <code>externally_connectable</code> in the extension manifest.
       </p>
     </>
   );

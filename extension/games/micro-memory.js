@@ -63,22 +63,36 @@
       pad.hidden = true;
       pad.innerHTML = "";
 
+      const plan =
+        globalThis.__KEEL_playPace && typeof globalThis.__KEEL_playPace.memoryFlashPlan === "function"
+          ? globalThis.__KEEL_playPace.memoryFlashPlan(ctx)
+          : {
+              beforeFirst: 120,
+              symbolGap: 500,
+              afterSymbolsToPick: 160,
+              afterAnswerNext: 420
+            };
+      const tShowA = plan.beforeFirst;
+      const tShowB = tShowA + plan.symbolGap;
+      const tClear = tShowB + plan.symbolGap;
+      const tPick = tClear + plan.afterSymbolsToPick;
+
       const t1 = window.setTimeout(() => {
         if (destroyed || !ctx.isGenerating()) return;
         flash.textContent = a;
-      }, 120);
+      }, tShowA);
       timers.push(t1);
 
       const t2 = window.setTimeout(() => {
         if (destroyed || !ctx.isGenerating()) return;
         flash.textContent = b;
-      }, 620);
+      }, tShowB);
       timers.push(t2);
 
       const t3 = window.setTimeout(() => {
         if (destroyed || !ctx.isGenerating()) return;
         flash.textContent = "";
-      }, 1120);
+      }, tClear);
       timers.push(t3);
 
       const pickShownAt = { t: 0 };
@@ -116,12 +130,12 @@
             ctx.updateHud();
             const t5 = window.setTimeout(() => {
               if (!destroyed) nextRound();
-            }, 420);
+            }, plan.afterAnswerNext);
             timers.push(t5);
           });
           pad.appendChild(btn);
         });
-      }, 1280);
+      }, tPick);
       timers.push(t4);
     }
 

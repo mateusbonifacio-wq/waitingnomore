@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.16";
+  const IDLE_EXTENSION_VERSION = "1.0.19";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -43,16 +43,12 @@
     triggerWhen: "always",
     smartTriggerMinGenerationSec: 3,
     themeMode: "dark",
-    enabledGames: ["current"]
+    enabledGames: ["current"],
+    enabledTopics: []
   };
   let userPrefs = { ...defaultUserPrefs };
   let rawGenerationSince = 0;
 
-  const brainQuestions = [
-    { question: "If all Bloops are Razzies and all Razzies are Lazzies, are all Bloops Lazzies?", answers: ["Yes", "No", "Cannot know"], correct: 0 },
-    { question: "A clock shows 3:15. What is the angle between hands?", answers: ["7.5 deg", "0 deg", "15 deg"], correct: 0 },
-    { question: "Which is next: 2, 6, 12, 20, ?", answers: ["28", "30", "32"], correct: 1 }
-  ];
   const focusPrompts = ["Roll your shoulders.", "Take one deep breath.", "Look away from the screen for 3 seconds.", "Relax your jaw."];
 
   let currentMode = MODES.PLAY;
@@ -60,8 +56,11 @@
   let brainNextTimer = null;
   let summaryHideTimer = null;
   let summaryExitTimer = null;
-  let brainIndex = 0;
   let focusIndex = 0;
+  /** Last N brain question ids to reduce repeats (per browser session). */
+  let recentBrainQuestionIds = [];
+  /** @type {{ id: string, topic: string, question: string, answers: string[], correct: number } | null} */
+  let currentBrainQuestion = null;
   let root;
   let card;
   let modeBody;
@@ -188,7 +187,74 @@
       const uniq = [...new Set(filtered)];
       base.enabledGames = uniq.length ? uniq : ["current"];
     }
+    const bBank = globalThis.__KEEL_BRAIN_BANK;
+    const topicIds =
+      bBank && Array.isArray(bBank.TOPIC_IDS)
+        ? [...bBank.TOPIC_IDS]
+        : ["general_knowledge", "pop_culture", "science", "geography", "logic", "fun_random"];
+    if (Array.isArray(raw.enabledTopics)) {
+      if (raw.enabledTopics.length === 0) {
+        base.enabledTopics = [];
+      } else {
+        const filt = raw.enabledTopics.filter((t) => typeof t === "string" && topicIds.includes(t));
+        base.enabledTopics = [...new Set(filt)];
+      }
+    }
     return base;
+  }
+
+  function getBrainBank() {
+    const b = globalThis.__KEEL_BRAIN_BANK;
+    return b && Array.isArray(b.ALL_QUESTIONS) && b.ALL_QUESTIONS.length ? b : null;
+  }
+
+  /** Empty enabledTopics in prefs means all topics. */
+  function activeBrainTopicIds() {
+    const bank = getBrainBank();
+    const all = bank ? [...bank.TOPIC_IDS] : [];
+    const raw = userPrefs.enabledTopics;
+    if (!Array.isArray(raw) || raw.length === 0) return all.length ? all : ["logic"];
+    const filtered = raw.filter((t) => typeof t === "string" && all.includes(t));
+    return filtered.length ? filtered : all;
+  }
+
+  const BRAIN_RECENT_MAX = 10;
+
+  function pickBrainQuestion() {
+    const bank = getBrainBank();
+    if (!bank) {
+      currentBrainQuestion = {
+        id: "fallback",
+        topic: "logic",
+        question: "2 + 2 = ?",
+        answers: ["3", "4", "5"],
+        correct: 1
+      };
+      return currentBrainQuestion;
+    }
+    const topics = activeBrainTopicIds();
+    let pool = bank.ALL_QUESTIONS.filter((q) => topics.includes(q.topic));
+    let candidates = pool.filter((q) => !recentBrainQuestionIds.includes(q.id));
+    if (!candidates.length && pool.length) {
+      recentBrainQuestionIds.splice(0, Math.ceil(recentBrainQuestionIds.length / 2));
+      candidates = pool.filter((q) => !recentBrainQuestionIds.includes(q.id));
+    }
+    if (!candidates.length) candidates = pool;
+    if (!candidates.length) {
+      currentBrainQuestion = {
+        id: "fallback2",
+        topic: "logic",
+        question: "Next: 1, 2, 3, ?",
+        answers: ["4", "5", "6"],
+        correct: 0
+      };
+      return currentBrainQuestion;
+    }
+    const item = candidates[Math.floor(Math.random() * candidates.length)];
+    recentBrainQuestionIds.push(item.id);
+    while (recentBrainQuestionIds.length > BRAIN_RECENT_MAX) recentBrainQuestionIds.shift();
+    currentBrainQuestion = item;
+    return item;
   }
 
   function formatSettingsStrip() {
@@ -234,7 +300,8 @@
       triggerWhen: userPrefs.triggerWhen,
       smartTriggerMinGenerationSec: userPrefs.smartTriggerMinGenerationSec,
       themeMode: userPrefs.themeMode,
-      enabledGames: userPrefs.enabledGames
+      enabledGames: userPrefs.enabledGames,
+      enabledTopics: userPrefs.enabledTopics
     });
   }
 
@@ -406,6 +473,9 @@
 
   function setMode(mode) {
     currentMode = mode;
+    if (mode !== MODES.BRAIN) {
+      currentBrainQuestion = null;
+    }
     const tabs = root.querySelectorAll(".idle-time-tab");
     tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === mode));
     renderMode();
@@ -575,6 +645,7 @@
       isGenerating: () => isGenerating,
       isCardHidden: () => card.classList.contains("hidden"),
       getPlayModeTuning,
+      getPlayIntensity: () => userPrefs.playIntensity,
       runtimeStats,
       trackEvent,
       debugPlay,
@@ -593,7 +664,9 @@
   }
 
   function renderBrainMode() {
-    const item = brainQuestions[brainIndex];
+    if (!currentBrainQuestion) pickBrainQuestion();
+    const item = currentBrainQuestion;
+    if (!item) return;
     modeBody.innerHTML = `<div class="brain-question">${item.question}</div><div class="brain-answers"></div><div class="brain-feedback"></div>`;
     const answersEl = modeBody.querySelector(".brain-answers");
     const feedbackEl = modeBody.querySelector(".brain-feedback");
@@ -609,9 +682,9 @@
         feedbackEl.classList.toggle("correct", isCorrect);
         feedbackEl.classList.toggle("incorrect", !isCorrect);
         answersEl.querySelectorAll("button").forEach((btn) => (btn.disabled = true));
-        trackEvent("brain_answer", { correct: isCorrect });
+        trackEvent("brain_answer", { correct: isCorrect, brainTopic: item.topic, brainQuestionId: item.id });
         brainNextTimer = setTimeout(() => {
-          brainIndex = (brainIndex + 1) % brainQuestions.length;
+          pickBrainQuestion();
           renderBrainMode();
         }, BRAIN_NEXT_QUESTION_DELAY_MS);
       });
@@ -630,7 +703,6 @@
   }
 
   function resetSessionState() {
-    brainIndex = Math.floor(Math.random() * brainQuestions.length);
     focusIndex = Math.floor(Math.random() * focusPrompts.length);
     setMode(defaultModeFromPrefs());
   }
@@ -647,6 +719,8 @@
     runtimeStats.brainCorrect = 0;
     runtimeStats.focusPromptsCompleted = 0;
     runtimeStats.events = [];
+    recentBrainQuestionIds = [];
+    currentBrainQuestion = null;
     const gReg = globalThis.__KEEL_GAMES_REGISTRY;
     sessionPlayGameId =
       gReg && typeof gReg.pickRandomGameId === "function"

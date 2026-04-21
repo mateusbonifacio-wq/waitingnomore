@@ -15,9 +15,11 @@ const defaultUserPrefs = {
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
-  enabledGames: ["current"]
+  enabledGames: ["current"],
+  enabledTopics: []
 };
 
+const BRAIN_TOPIC_IDS = ["general_knowledge", "pop_culture", "science", "geography", "logic", "fun_random"];
 const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
 
 function normalizeEnabledGamesList(raw) {
@@ -41,6 +43,14 @@ function coerceUserPrefs(raw) {
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
+  if (Array.isArray(raw.enabledTopics)) {
+    if (raw.enabledTopics.length === 0) {
+      base.enabledTopics = [];
+    } else {
+      const filt = raw.enabledTopics.filter((t) => typeof t === "string" && BRAIN_TOPIC_IDS.includes(t));
+      base.enabledTopics = [...new Set(filt)];
+    }
+  }
   return base;
 }
 
