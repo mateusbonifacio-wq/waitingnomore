@@ -501,6 +501,10 @@
   margin-bottom: 10px;
 }
 
+.session-summary-secondary--solo {
+  margin-top: 4px;
+}
+
 .session-summary-line {
   display: flex;
   align-items: center;
@@ -582,49 +586,59 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* Focus off: minimal calm placeholder (no animation). */
+.focus-shell--muted {
+  opacity: 0.55;
+}
+
+.focus-shell--breathing {
+  opacity: 0;
+  animation: focus-shell-fade-in 0.6s ease-out forwards;
+}
+
+.focus-shell--fade-out {
+  animation: none !important;
+  opacity: 0;
+  transition: opacity 0.48s ease;
+}
+
+@keyframes focus-shell-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .focus-breath {
   width: 22px;
   height: 22px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 35%, #c7d2fe 0%, #6366f1 64%, #4338ca 100%);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 18px rgba(99, 102, 241, 0.3);
-  animation: focus-breathe 1.2s ease-in-out infinite;
+  transform: scale(0.88);
+  opacity: 0.72;
+  /* ~2.0s inhale to peak, ~2.5s exhale — 4.5s total, ease-in-out, infinite while generating */
+  animation: focus-breathe 4.5s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
-.focus-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2), 0 0 12px rgba(226, 232, 240, 0.22);
-  animation: focus-dot-pulse 1.2s ease-in-out infinite;
-}
-
-.focus-dot--idle {
-  opacity: 0.45;
+.focus-breath--paused {
   animation: none;
+  transform: scale(0.92);
+  opacity: 0.38;
 }
 
 @keyframes focus-breathe {
   0%,
   100% {
-    transform: scale(0.9);
-    opacity: 0.64;
+    transform: scale(0.88);
+    opacity: 0.72;
   }
-  50% {
-    transform: scale(1.95);
-    opacity: 1;
-  }
-}
-
-@keyframes focus-dot-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  50% {
-    transform: scale(1.45);
+  /* 2s / 4.5s ≈ 44.44% — end of inhale */
+  44.44% {
+    transform: scale(1.62);
     opacity: 1;
   }
 }
@@ -774,11 +788,6 @@
 #idle-time-overlay-root.idle-time-root--theme-light .focus-breath {
   background: radial-gradient(circle at 35% 35%, #e0e7ff 0%, #6366f1 62%, #4338ca 100%);
   box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08), 0 0 16px rgba(99, 102, 241, 0.26);
-}
-
-#idle-time-overlay-root.idle-time-root--theme-light .focus-dot {
-  background: #475569;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08), 0 0 8px rgba(71, 85, 105, 0.2);
 }
 
 #idle-time-overlay-root.idle-time-root--theme-light .idle-time-card--summary {

@@ -32,6 +32,7 @@ create table if not exists public.user_settings (
   enabled_games jsonb not null default '["current"]'::jsonb,
   enabled_topics jsonb not null default '[]'::jsonb,
   focus_mode_enabled boolean not null default true,
+  -- Legacy: unused by app (Focus is always breathing). Kept for existing DB rows.
   focus_mode_style text not null default 'breathing' check (focus_mode_style in ('breathing', 'dot', 'both')),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())

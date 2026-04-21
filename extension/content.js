@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.21";
+  const IDLE_EXTENSION_VERSION = "1.0.22";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -45,8 +45,7 @@
     themeMode: "dark",
     enabledGames: ["current"],
     enabledTopics: [],
-    focusModeEnabled: true,
-    focusModeStyle: "breathing"
+    focusModeEnabled: true
   };
   let userPrefs = { ...defaultUserPrefs };
   let rawGenerationSince = 0;
@@ -56,7 +55,6 @@
   let brainNextTimer = null;
   let summaryHideTimer = null;
   let summaryExitTimer = null;
-  let focusStyleForSession = "breathing";
   /** Last N brain question ids to reduce repeats (per browser session). */
   let recentBrainQuestionIds = [];
   /** @type {{ id: string, topic: string, question: string, answers: string[], correct: number } | null} */
@@ -107,7 +105,6 @@
     reactionMsSamples: [],
     brainAnswered: 0,
     brainCorrect: 0,
-    focusPromptsCompleted: 0,
     events: [],
     bestHpsToday: 0,
     bestDayKey: "",
@@ -201,7 +198,6 @@
       }
     }
     if (typeof raw.focusModeEnabled === "boolean") base.focusModeEnabled = raw.focusModeEnabled;
-    if (["breathing", "dot", "both"].includes(raw.focusModeStyle)) base.focusModeStyle = raw.focusModeStyle;
     return base;
   }
 
@@ -327,8 +323,7 @@
       themeMode: userPrefs.themeMode,
       enabledGames: userPrefs.enabledGames,
       enabledTopics: userPrefs.enabledTopics,
-      focusModeEnabled: userPrefs.focusModeEnabled,
-      focusModeStyle: userPrefs.focusModeStyle
+      focusModeEnabled: userPrefs.focusModeEnabled
     });
   }
 
@@ -581,9 +576,8 @@
       return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromRounds + 300));
     }
     if (mode === MODES.FOCUS) {
-      const n = Number(summary.focusPromptsCompleted) || 0;
-      const fromRounds = Math.min(700, n * 80);
-      return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromRounds + 240));
+      const fromFocus = Math.min(1100, Math.round(durationSec * 90));
+      return Math.min(SUMMARY_MAX_MS, Math.max(SUMMARY_MIN_MS, SUMMARY_MIN_MS + fromDuration + fromFocus + 200));
     }
     const hits = Number(summary.hits) || 0;
     const misses = Number(summary.misses) || 0;
@@ -756,20 +750,14 @@
   function renderFocusMode() {
     if (!userPrefs.focusModeEnabled) {
       modeBody.innerHTML =
-        '<div class="focus-shell"><div class="focus-dot focus-dot--idle" aria-hidden="true"></div></div>';
+        '<div class="focus-shell focus-shell--muted" role="presentation" aria-hidden="true"><div class="focus-breath focus-breath--paused"></div></div>';
       return;
     }
-    const style = focusStyleForSession;
     modeBody.innerHTML =
-      style === "dot"
-        ? '<div class="focus-shell"><div class="focus-dot" aria-hidden="true"></div></div>'
-        : '<div class="focus-shell"><div class="focus-breath" aria-hidden="true"></div></div>';
-    runtimeStats.focusPromptsCompleted = Math.min(3, runtimeStats.focusPromptsCompleted + 1);
+      '<div class="focus-shell focus-shell--breathing" role="presentation" aria-hidden="true"><div class="focus-breath"></div></div>';
   }
 
   function resetSessionState() {
-    const pref = userPrefs.focusModeStyle;
-    focusStyleForSession = pref === "both" ? (Math.random() < 0.5 ? "breathing" : "dot") : pref;
     setMode(defaultModeFromPrefs());
   }
 
@@ -783,7 +771,6 @@
     runtimeStats.reactionMsSamples = [];
     runtimeStats.brainAnswered = 0;
     runtimeStats.brainCorrect = 0;
-    runtimeStats.focusPromptsCompleted = 0;
     runtimeStats.events = [];
     recentBrainQuestionIds = [];
     currentBrainQuestion = null;
@@ -836,15 +823,13 @@
         averageReactionMs: null
       };
     } else {
-      const n = runtimeStats.focusPromptsCompleted;
-      const hitsPerSecond = n / durationSec;
       summary = {
         sessionMode: MODES.FOCUS,
         durationSec,
-        focusPromptsCompleted: n,
-        hits: n,
+        focusPromptsCompleted: null,
+        hits: 0,
         misses: 0,
-        hitsPerSecond,
+        hitsPerSecond: 0,
         bestHpsToday: runtimeStats.bestHpsToday,
         averageReactionMs: null
       };
@@ -902,17 +887,11 @@
         <p class="session-summary-hint">Tap anywhere to close</p>
       </div>`;
     } else if (mode === MODES.FOCUS) {
-      const n = Number(summary.focusPromptsCompleted) || 0;
       inner = `
       <div class="session-summary session-summary--focus session-summary-panel" role="status" aria-label="Session results">
         <div class="session-summary-kicker">Session complete · Focus</div>
-        <div class="session-summary-primary" aria-label="Focus cycles">
-          <span class="session-summary-primary-emoji" aria-hidden="true">🌿</span>
-          <span class="session-summary-primary-value">${n}</span>
-          <span class="session-summary-primary-unit">${n === 1 ? "cycle" : "cycles"}</span>
-        </div>
-        <div class="session-summary-secondary">
-          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">⏱</span><span class="session-summary-line-text">${durLabel} session</span></div>
+        <div class="session-summary-secondary session-summary-secondary--solo">
+          <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">⏱</span><span class="session-summary-line-text">${durLabel}</span></div>
         </div>
         <p class="session-summary-hint">Tap anywhere to close</p>
       </div>`;
@@ -1064,23 +1043,36 @@
       return;
     }
     freezeActiveSessionUi();
-    const summary = finishSession(true);
-    if (!summary) {
-      clearModeTimers();
-      return setOverlayVisibility(false);
+
+    function completeGenerationEnd() {
+      const summary = finishSession(true);
+      if (!summary) {
+        clearModeTimers();
+        return setOverlayVisibility(false);
+      }
+      if (!userPrefs.showSessionSummary) {
+        clearModeTimers();
+        setOverlayVisibility(false);
+        return;
+      }
+      renderSessionSummary(summary);
+      setOverlayVisibility(true);
+      const summaryMs = computeSummaryVisibleMs(summary);
+      summaryHideTimer = window.setTimeout(() => {
+        summaryHideTimer = null;
+        if (!isGenerating) hideSummaryWithExitAnimation();
+      }, summaryMs);
     }
-    if (!userPrefs.showSessionSummary) {
-      clearModeTimers();
-      setOverlayVisibility(false);
-      return;
+
+    if (currentMode === MODES.FOCUS && userPrefs.focusModeEnabled && modeBody) {
+      const shell = modeBody.querySelector(".focus-shell.focus-shell--breathing");
+      if (shell) {
+        shell.classList.add("focus-shell--fade-out");
+        window.setTimeout(completeGenerationEnd, 460);
+        return;
+      }
     }
-    renderSessionSummary(summary);
-    setOverlayVisibility(true);
-    const summaryMs = computeSummaryVisibleMs(summary);
-    summaryHideTimer = window.setTimeout(() => {
-      summaryHideTimer = null;
-      if (!isGenerating) hideSummaryWithExitAnimation();
-    }, summaryMs);
+    completeGenerationEnd();
   }
 
   function observeHostDom() {

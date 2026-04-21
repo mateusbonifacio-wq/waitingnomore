@@ -25,7 +25,7 @@ export default async function SettingsPage() {
         const { data } = await supabase
           .from("user_settings")
           .select(
-            "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,enabled_topics,focus_mode_enabled,focus_mode_style"
+            "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,enabled_topics,focus_mode_enabled"
           )
           .eq("user_id", user.id)
           .maybeSingle();
@@ -42,10 +42,7 @@ export default async function SettingsPage() {
             themeMode: data.theme_mode,
             enabledGames: normalizeEnabledGamesList(data.enabled_games),
             enabledTopics: normalizeEnabledTopicsList(data.enabled_topics),
-            focusModeEnabled: data.focus_mode_enabled !== false,
-            focusModeStyle: ["breathing", "dot", "both"].includes(data.focus_mode_style)
-              ? data.focus_mode_style
-              : "breathing"
+            focusModeEnabled: data.focus_mode_enabled !== false
           };
         }
       }

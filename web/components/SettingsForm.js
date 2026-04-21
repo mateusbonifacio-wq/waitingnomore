@@ -20,11 +20,6 @@ const GAME_OPTIONS = [
 ];
 
 const BRAIN_TOPIC_IDS = BRAIN_TOPIC_OPTIONS.map((t) => t.id);
-const FOCUS_STYLE_OPTIONS = [
-  { id: "breathing", label: "Breathing" },
-  { id: "dot", label: "Focus dot" },
-  { id: "both", label: "Both (random)" }
-];
 const SECTION_ORDER = ["general", "experience", "games", "brain", "focus"];
 const SECTION_LABELS = {
   general: "General",
@@ -46,7 +41,6 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
   const [enabledGames, setEnabledGames] = useState(defaultExtensionSettings.enabledGames);
   const [enabledTopics, setEnabledTopics] = useState(defaultExtensionSettings.enabledTopics);
   const [focusModeEnabled, setFocusModeEnabled] = useState(defaultExtensionSettings.focusModeEnabled);
-  const [focusModeStyle, setFocusModeStyle] = useState(defaultExtensionSettings.focusModeStyle);
 
   useEffect(() => {
     const s = loadExtensionSettings();
@@ -59,7 +53,6 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
     setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     setFocusModeEnabled(Boolean(s.focusModeEnabled));
-    setFocusModeStyle(s.focusModeStyle || "breathing");
     setReady(true);
   }, []);
 
@@ -75,7 +68,6 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
     setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     setFocusModeEnabled(typeof s.focusModeEnabled === "boolean" ? s.focusModeEnabled : defaultExtensionSettings.focusModeEnabled);
-    setFocusModeStyle(s.focusModeStyle || defaultExtensionSettings.focusModeStyle);
     void saveExtensionSettings(s);
   }, [initialCloudSettings]);
 
@@ -92,9 +84,6 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
       if (Array.isArray(s.enabledGames)) setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
       if (Array.isArray(s.enabledTopics)) setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
       if (typeof s.focusModeEnabled === "boolean") setFocusModeEnabled(s.focusModeEnabled);
-      if (s.focusModeStyle === "breathing" || s.focusModeStyle === "dot" || s.focusModeStyle === "both") {
-        setFocusModeStyle(s.focusModeStyle);
-      }
     }
     window.addEventListener("wnm-settings-changed", onWnmSettings);
     return () => window.removeEventListener("wnm-settings-changed", onWnmSettings);
@@ -390,7 +379,7 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
               <h2 id="settings-focus" className="settings-category-title">
                 Focus Mode
               </h2>
-              <p className="section-lead">Calm visual reset while a response is generating.</p>
+              <p className="section-lead">Soft breathing circle while a response is generating.</p>
 
               <div className="setting-row">
                 <span className="setting-label">Enable Focus Mode</span>
@@ -405,33 +394,6 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
                     void persist({ focusModeEnabled: next });
                   }}
                 />
-              </div>
-
-              <div className="setting-row setting-row--stack">
-                <div className="setting-label-block">
-                  <span className="setting-label" id="label-focus-style">
-                    Style
-                  </span>
-                  <span className="setting-hint">Pick one calm style, or randomize between both.</span>
-                </div>
-                <div className="setting-control">
-                  <select
-                    className="input"
-                    value={focusModeStyle}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setFocusModeStyle(v);
-                      void persist({ focusModeStyle: v });
-                    }}
-                    aria-labelledby="label-focus-style"
-                  >
-                    {FOCUS_STYLE_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </section>
           ) : null}

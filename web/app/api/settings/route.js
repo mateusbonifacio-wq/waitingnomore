@@ -7,7 +7,7 @@ import {
 import { getSupabaseServerClient } from "../../../lib/supabase/server";
 
 const SETTINGS_COLUMNS =
-  "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,enabled_topics,focus_mode_enabled,focus_mode_style,updated_at";
+  "overlay_while_generating,default_session_mode,show_session_summary,play_intensity,trigger_when,smart_trigger_min_generation_sec,theme_mode,enabled_games,enabled_topics,focus_mode_enabled,updated_at";
 
 function mapDbToSettings(row) {
   if (!row) return { ...defaultExtensionSettings };
@@ -22,8 +22,7 @@ function mapDbToSettings(row) {
     themeMode: row.theme_mode,
     enabledGames: normalizeEnabledGamesList(row.enabled_games),
     enabledTopics: normalizeEnabledTopicsList(row.enabled_topics),
-    focusModeEnabled: row.focus_mode_enabled !== false,
-    focusModeStyle: ["breathing", "dot", "both"].includes(row.focus_mode_style) ? row.focus_mode_style : "breathing"
+    focusModeEnabled: row.focus_mode_enabled !== false
   };
 }
 
@@ -38,8 +37,7 @@ function mapBodyToDb(payload) {
     theme_mode: payload.themeMode,
     enabled_games: normalizeEnabledGamesList(payload.enabledGames),
     enabled_topics: normalizeEnabledTopicsList(payload.enabledTopics),
-    focus_mode_enabled: payload.focusModeEnabled !== false,
-    focus_mode_style: ["breathing", "dot", "both"].includes(payload.focusModeStyle) ? payload.focusModeStyle : "breathing"
+    focus_mode_enabled: payload.focusModeEnabled !== false
   };
 }
 
