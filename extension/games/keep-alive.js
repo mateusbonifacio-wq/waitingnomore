@@ -1,6 +1,6 @@
 /**
- * Falling ball — tap before it hits the bottom.
- * Physics tuned for a quick, fair bounce; hits register in the lower band with a short cooldown.
+ * Orbit dodge — tap to flip rotation direction and avoid obstacle contact.
+ * 1 tap = immediate clockwise/counterclockwise switch.
  */
 (() => {
   globalThis.__KEEL_GAME_CREATORS = globalThis.__KEEL_GAME_CREATORS || {};
@@ -10,10 +10,25 @@
     let destroyed = false;
     let onPointerDown = null;
     let layerEl = null;
+    let lastTs = 0;
 
-    function physicsClock() {
+    function speedClock() {
       const pace = globalThis.__KEEL_playPace;
       return typeof pace?.intensityClockRatio === "function" ? pace.intensityClockRatio(ctx) : 1;
+    }
+
+    function normalizeAngle(a) {
+      let out = a % (Math.PI * 2);
+      if (out < 0) out += Math.PI * 2;
+      return out;
+    }
+
+    /** Shortest signed angular distance in radians ([-PI, PI]). */
+    function angleDelta(from, to) {
+      let d = normalizeAngle(to) - normalizeAngle(from);
+      if (d > Math.PI) d -= Math.PI * 2;
+      if (d < -Math.PI) d += Math.PI * 2;
+      return d;
     }
 
     return {
@@ -21,56 +36,92 @@
       render() {
         const area = ctx.area;
         area.innerHTML =
-          '<div class="keep-alive-layer" aria-label="Keep the dot up">' +
+          '<div class="keep-alive-layer keep-alive-orbit" aria-label="Flip direction to avoid collision">' +
+          '<div class="keep-alive-ring" aria-hidden="true"></div>' +
+          '<div class="keep-alive-core" aria-hidden="true"></div>' +
+          '<div class="keep-alive-obstacle" aria-hidden="true"></div>' +
           '<div class="keep-alive-ball" aria-hidden="true"></div>' +
-          '<p class="keep-alive-hint">Tap when it drops low</p></div>';
+          '<p class="keep-alive-hint">Tap to flip direction</p></div>';
         layerEl = area.querySelector(".keep-alive-layer");
         const ball = area.querySelector(".keep-alive-ball");
-        const r = 9;
-        const clock = physicsClock();
-        /** Gentler fall, stronger tap — feels controllable in ~1–2s. */
-        const g = 0.2 * clock;
-        const kick = -6.4 * clock;
-        const maxDownVy = 7.2 * clock;
-        const maxUpVy = 8.5;
-        let x = 0;
-        let y = 14;
-        let vy = 0;
-        let lastSaveMs = 0;
-        let dangerEnteredAt = 0;
+        const obstacle = area.querySelector(".keep-alive-obstacle");
+        const clock = speedClock();
+        const ballR = 9;
+        const obstacleR = 7;
+        const orbitSpeed = 3.4 * clock;
+        const obstacleSpeed = 0.95 * clock;
+        const dangerBand = 0.48;
+        const collideBand = 0.2;
+        let ballAngle = Math.random() * Math.PI * 2;
+        let obstacleAngle = normalizeAngle(ballAngle + Math.PI / 2);
+        let dir = Math.random() > 0.5 ? 1 : -1;
+        let wasNear = false;
+        let inContact = false;
+        let lastTapMs = 0;
         let started = false;
 
-        function layoutSize() {
-          const w = Math.max(56, area.clientWidth || 0);
+        function layout() {
+          const w = Math.max(60, area.clientWidth || 0);
           const h = Math.max(72, area.clientHeight || 0);
-          return { w, h, floor: h - r - 4, dangerY: h * 0.46 };
+          const cx = w * 0.5;
+          const cy = h * 0.5;
+          const orbitR = Math.max(22, Math.min(w, h) * 0.34);
+          return { w, h, cx, cy, orbitR };
         }
 
-        function resetBall() {
-          const { w, h } = layoutSize();
-          x = 12 + Math.random() * Math.max(8, w - 24);
-          y = 12 + Math.random() * Math.min(22, h * 0.22);
-          vy = 0.35 * clock;
-          dangerEnteredAt = 0;
+        function place(el, cx, cy, r, angle, itemR) {
+          const x = cx + Math.cos(angle) * r;
+          const y = cy + Math.sin(angle) * r;
+          el.style.left = `${x - itemR}px`;
+          el.style.top = `${y - itemR}px`;
         }
 
-        function tick() {
+        function resetRound() {
+          ballAngle = Math.random() * Math.PI * 2;
+          obstacleAngle = normalizeAngle(ballAngle + (Math.random() > 0.5 ? 1 : -1) * (Math.PI * 0.45));
+          dir = Math.random() > 0.5 ? 1 : -1;
+          wasNear = false;
+          inContact = false;
+          layerEl.classList.remove("keep-alive-orbit--flip");
+          layerEl.classList.remove("keep-alive-orbit--safe");
+        }
+
+        function tick(ts) {
           if (destroyed || !area.isConnected) return;
           if (!ctx.isPlayMode() || !ctx.isGenerating() || ctx.isCardHidden()) {
+            lastTs = ts || 0;
             rafId = window.requestAnimationFrame(tick);
             return;
           }
-          const { w, h, floor, dangerY } = layoutSize();
-          vy += g;
-          vy = Math.min(maxDownVy, vy);
-          y += vy;
-          if (dangerEnteredAt > 0 && (y < dangerY - 12 || vy < -0.05)) {
-            dangerEnteredAt = 0;
+          if (!lastTs) lastTs = ts || performance.now();
+          const now = ts || performance.now();
+          const dt = Math.min(0.05, (now - lastTs) / 1000);
+          lastTs = now;
+
+          ballAngle = normalizeAngle(ballAngle + dir * orbitSpeed * dt);
+          obstacleAngle = normalizeAngle(obstacleAngle + obstacleSpeed * dt);
+
+          const { cx, cy, orbitR } = layout();
+          place(ball, cx, cy, orbitR, ballAngle, ballR);
+          place(obstacle, cx, cy, orbitR, obstacleAngle, obstacleR);
+
+          const d = Math.abs(angleDelta(ballAngle, obstacleAngle));
+          const isNear = d < dangerBand;
+          const isCollision = d < collideBand;
+
+          if (wasNear && !isNear && !inContact) {
+            ctx.runtimeStats.reactionMsSamples.push(95);
+            ctx.runtimeStats.hits += 1;
+            ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs: 95 });
+            ctx.updateHud();
+            layerEl.classList.remove("keep-alive-orbit--safe");
+            // Reflow to replay brief feedback animation.
+            void layerEl.offsetWidth;
+            layerEl.classList.add("keep-alive-orbit--safe");
           }
-          if (dangerEnteredAt === 0 && y > dangerY && vy > 0.12) {
-            dangerEnteredAt = performance.now();
-          }
-          if (y >= floor) {
+
+          if (isCollision && !inContact) {
+            inContact = true;
             ctx.runtimeStats.playMisses += 1;
             ctx.trackEvent("play_miss", {
               microGame: ctx.gameId,
@@ -78,42 +129,30 @@
               totalHits: ctx.runtimeStats.hits
             });
             ctx.updateHud();
-            resetBall();
+            resetRound();
           }
-          ball.style.left = `${Math.max(r, Math.min(w - r, x)) - r}px`;
-          ball.style.top = `${Math.max(r, Math.min(h - r, y)) - r}px`;
+          if (!isCollision) inContact = false;
+          wasNear = isNear;
+
           rafId = window.requestAnimationFrame(tick);
         }
 
-        onPointerDown = (_e) => {
+        onPointerDown = () => {
           if (destroyed || !ctx.isPlayMode() || !ctx.isGenerating() || ctx.isCardHidden()) return;
-          const { w, h, floor, dangerY } = layoutSize();
           const now = performance.now();
-          vy += kick;
-          vy = Math.max(-maxUpVy, vy);
-
-          const inDanger = y > dangerY - 4 && vy > 0.08;
-          if (inDanger && now - lastSaveMs > 110) {
-            lastSaveMs = now;
-            const reactionMs =
-              dangerEnteredAt > 0 ? Math.max(35, Math.round(now - dangerEnteredAt)) : Math.round(55 + Math.random() * 40);
-            dangerEnteredAt = 0;
-            ctx.runtimeStats.reactionMsSamples.push(reactionMs);
-            ctx.runtimeStats.hits += 1;
-            ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs });
-            ctx.updateHud();
-          }
-
-          if (y >= floor - 0.5) {
-            y = Math.min(y, floor - 1);
-          }
+          if (now - lastTapMs < 45) return;
+          lastTapMs = now;
+          dir *= -1;
+          layerEl.classList.remove("keep-alive-orbit--flip");
+          void layerEl.offsetWidth;
+          layerEl.classList.add("keep-alive-orbit--flip");
         };
 
         layerEl.addEventListener("pointerdown", onPointerDown, { passive: true });
 
         function startLoop() {
           if (destroyed || !area.isConnected) return;
-          resetBall();
+          resetRound();
           ctx.updateHud();
           rafId = window.requestAnimationFrame(tick);
         }

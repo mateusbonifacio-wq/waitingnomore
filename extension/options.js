@@ -10,7 +10,9 @@ const defaultUserPrefs = {
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
   enabledGames: ["current"],
-  enabledTopics: []
+  enabledTopics: [],
+  focusModeEnabled: true,
+  focusModeStyle: "breathing"
 };
 
 const BRAIN_TOPIC_IDS = ["general_knowledge", "pop_culture", "science", "geography", "logic", "fun_random"];
@@ -49,6 +51,8 @@ function coerceUserPrefs(raw) {
       base.enabledTopics = [...new Set(filt)];
     }
   }
+  if (typeof raw.focusModeEnabled === "boolean") base.focusModeEnabled = raw.focusModeEnabled;
+  if (["breathing", "dot", "both"].includes(raw.focusModeStyle)) base.focusModeStyle = raw.focusModeStyle;
   return base;
 }
 

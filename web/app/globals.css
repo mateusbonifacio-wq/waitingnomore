@@ -422,6 +422,64 @@ table.data-table {
   margin-bottom: 16px;
 }
 
+.settings-shell {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 84px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.settings-sidebar-title {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.settings-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-nav-item {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.settings-nav-item:hover {
+  background: var(--surface-hover);
+}
+
+.settings-nav-item[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.settings-panel {
+  min-width: 0;
+  max-height: min(72vh, 680px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .settings-section h2 {
   margin: 0 0 16px;
   font-size: 1rem;
@@ -463,6 +521,10 @@ table.data-table {
 .settings-account-hint {
   margin: 0;
   max-width: 52ch;
+}
+
+.settings-panel .settings-section {
+  margin-bottom: 0;
 }
 
 .settings-section .section-lead {
@@ -662,6 +724,30 @@ input.input {
 
 .auth-magic[open] summary {
   margin-bottom: 4px;
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-sidebar {
+    position: static;
+  }
+
+  .settings-sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .settings-nav-item {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .settings-panel {
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 .auth-confirm-actions {

@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.20";
+  const IDLE_EXTENSION_VERSION = "1.0.21";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -44,19 +44,19 @@
     smartTriggerMinGenerationSec: 3,
     themeMode: "dark",
     enabledGames: ["current"],
-    enabledTopics: []
+    enabledTopics: [],
+    focusModeEnabled: true,
+    focusModeStyle: "breathing"
   };
   let userPrefs = { ...defaultUserPrefs };
   let rawGenerationSince = 0;
-
-  const focusPrompts = ["Roll your shoulders.", "Take one deep breath.", "Look away from the screen for 3 seconds.", "Relax your jaw."];
 
   let currentMode = MODES.PLAY;
   let isGenerating = false;
   let brainNextTimer = null;
   let summaryHideTimer = null;
   let summaryExitTimer = null;
-  let focusIndex = 0;
+  let focusStyleForSession = "breathing";
   /** Last N brain question ids to reduce repeats (per browser session). */
   let recentBrainQuestionIds = [];
   /** @type {{ id: string, topic: string, question: string, answers: string[], correct: number } | null} */
@@ -200,6 +200,8 @@
         base.enabledTopics = [...new Set(filt)];
       }
     }
+    if (typeof raw.focusModeEnabled === "boolean") base.focusModeEnabled = raw.focusModeEnabled;
+    if (["breathing", "dot", "both"].includes(raw.focusModeStyle)) base.focusModeStyle = raw.focusModeStyle;
     return base;
   }
 
@@ -324,7 +326,9 @@
       smartTriggerMinGenerationSec: userPrefs.smartTriggerMinGenerationSec,
       themeMode: userPrefs.themeMode,
       enabledGames: userPrefs.enabledGames,
-      enabledTopics: userPrefs.enabledTopics
+      enabledTopics: userPrefs.enabledTopics,
+      focusModeEnabled: userPrefs.focusModeEnabled,
+      focusModeStyle: userPrefs.focusModeStyle
     });
   }
 
@@ -333,6 +337,15 @@
     root.classList.toggle("idle-time-root--theme-light", userPrefs.themeMode === "light");
     const strip = root.querySelector("[data-settings-strip]");
     if (strip) strip.textContent = formatSettingsStrip();
+    const focusTab = root.querySelector('.idle-time-tab[data-mode="focus"]');
+    if (focusTab) {
+      focusTab.hidden = !userPrefs.focusModeEnabled;
+      focusTab.setAttribute("aria-hidden", userPrefs.focusModeEnabled ? "false" : "true");
+    }
+    if (!userPrefs.focusModeEnabled && currentMode === MODES.FOCUS) {
+      setMode(MODES.PLAY);
+      return;
+    }
     applyDefaultSessionModeFromPrefs();
     syncGenerationOverlay();
   }
@@ -389,7 +402,7 @@
   function defaultModeFromPrefs() {
     const m = userPrefs.defaultSessionMode;
     if (m === "brain") return MODES.BRAIN;
-    if (m === "focus") return MODES.FOCUS;
+    if (m === "focus" && userPrefs.focusModeEnabled) return MODES.FOCUS;
     return MODES.PLAY;
   }
 
@@ -495,6 +508,9 @@
   }
 
   function setMode(mode) {
+    if (mode === MODES.FOCUS && !userPrefs.focusModeEnabled) {
+      mode = MODES.PLAY;
+    }
     currentMode = mode;
     if (mode !== MODES.BRAIN) {
       currentBrainQuestion = null;
@@ -738,17 +754,22 @@
   }
 
   function renderFocusMode() {
-    modeBody.innerHTML = `<div class="focus-prompt">${focusPrompts[focusIndex]}</div><button class="focus-next">Next Prompt</button>`;
-    modeBody.querySelector(".focus-next").addEventListener("click", () => {
-      runtimeStats.focusPromptsCompleted += 1;
-      focusIndex = (focusIndex + 1) % focusPrompts.length;
-      trackEvent("focus_prompt_next", { focusIndex });
-      renderFocusMode();
-    });
+    if (!userPrefs.focusModeEnabled) {
+      modeBody.innerHTML =
+        '<div class="focus-shell"><div class="focus-dot focus-dot--idle" aria-hidden="true"></div></div>';
+      return;
+    }
+    const style = focusStyleForSession;
+    modeBody.innerHTML =
+      style === "dot"
+        ? '<div class="focus-shell"><div class="focus-dot" aria-hidden="true"></div></div>'
+        : '<div class="focus-shell"><div class="focus-breath" aria-hidden="true"></div></div>';
+    runtimeStats.focusPromptsCompleted = Math.min(3, runtimeStats.focusPromptsCompleted + 1);
   }
 
   function resetSessionState() {
-    focusIndex = Math.floor(Math.random() * focusPrompts.length);
+    const pref = userPrefs.focusModeStyle;
+    focusStyleForSession = pref === "both" ? (Math.random() < 0.5 ? "breathing" : "dot") : pref;
     setMode(defaultModeFromPrefs());
   }
 
@@ -885,10 +906,10 @@
       inner = `
       <div class="session-summary session-summary--focus session-summary-panel" role="status" aria-label="Session results">
         <div class="session-summary-kicker">Session complete · Focus</div>
-        <div class="session-summary-primary" aria-label="Prompts completed">
+        <div class="session-summary-primary" aria-label="Focus cycles">
           <span class="session-summary-primary-emoji" aria-hidden="true">🌿</span>
           <span class="session-summary-primary-value">${n}</span>
-          <span class="session-summary-primary-unit">${n === 1 ? "prompt" : "prompts"}</span>
+          <span class="session-summary-primary-unit">${n === 1 ? "cycle" : "cycles"}</span>
         </div>
         <div class="session-summary-secondary">
           <div class="session-summary-line"><span class="session-summary-line-emoji" aria-hidden="true">⏱</span><span class="session-summary-line-text">${durLabel} session</span></div>

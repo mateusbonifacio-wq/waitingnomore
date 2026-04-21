@@ -31,6 +31,8 @@ create table if not exists public.user_settings (
   theme_mode text not null default 'dark' check (theme_mode in ('light', 'dark')),
   enabled_games jsonb not null default '["current"]'::jsonb,
   enabled_topics jsonb not null default '[]'::jsonb,
+  focus_mode_enabled boolean not null default true,
+  focus_mode_style text not null default 'breathing' check (focus_mode_style in ('breathing', 'dot', 'both')),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -38,6 +40,8 @@ create table if not exists public.user_settings (
 -- Existing projects: add micro-game selection (safe if column already exists).
 alter table public.user_settings add column if not exists enabled_games jsonb not null default '["current"]'::jsonb;
 alter table public.user_settings add column if not exists enabled_topics jsonb not null default '[]'::jsonb;
+alter table public.user_settings add column if not exists focus_mode_enabled boolean not null default true;
+alter table public.user_settings add column if not exists focus_mode_style text not null default 'breathing' check (focus_mode_style in ('breathing', 'dot', 'both'));
 
 create table if not exists public.extension_installs (
   id uuid primary key default gen_random_uuid(),

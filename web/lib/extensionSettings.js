@@ -232,6 +232,7 @@ export function applyWebDocumentTheme(theme) {
 /** @typedef {"light" | "dark"} ThemeMode */
 /** @typedef {"current" | "keep_alive" | "quick_pattern" | "micro_memory"} MicroGameId */
 /** @typedef {"general_knowledge"|"pop_culture"|"science"|"geography"|"logic"|"fun_random"} BrainTopicId */
+/** @typedef {"breathing"|"dot"|"both"} FocusModeStyle */
 
 /**
  * @typedef {Object} ExtensionSettingsV1
@@ -245,6 +246,8 @@ export function applyWebDocumentTheme(theme) {
  * @property {ThemeMode} themeMode
  * @property {MicroGameId[]} enabledGames
  * @property {BrainTopicId[]} enabledTopics — empty = all topics; otherwise restrict pool
+ * @property {boolean} focusModeEnabled
+ * @property {FocusModeStyle} focusModeStyle
  */
 
 /** @type {ExtensionSettingsV1} */
@@ -258,7 +261,9 @@ export const defaultExtensionSettings = {
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
   enabledGames: ["current"],
-  enabledTopics: []
+  enabledTopics: [],
+  focusModeEnabled: true,
+  focusModeStyle: "breathing"
 };
 
 const INTENSITY = new Set(["chill", "normal", "intense"]);
@@ -266,6 +271,7 @@ const TRIGGER = new Set(["always", "smart"]);
 const MODE = new Set(["play", "brain", "focus"]);
 const THEME = new Set(["light", "dark"]);
 const MICRO_GAME_IDS = new Set(["current", "keep_alive", "quick_pattern", "micro_memory"]);
+const FOCUS_STYLE = new Set(["breathing", "dot", "both"]);
 
 /** @type {{ id: string, label: string, hint: string }[]} */
 export const BRAIN_TOPIC_OPTIONS = [
@@ -316,6 +322,8 @@ export function coerceSettings(raw) {
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
   base.enabledTopics = normalizeEnabledTopicsList(raw.enabledTopics);
+  if (typeof raw.focusModeEnabled === "boolean") base.focusModeEnabled = raw.focusModeEnabled;
+  if (FOCUS_STYLE.has(raw.focusModeStyle)) base.focusModeStyle = raw.focusModeStyle;
   return base;
 }
 
