@@ -29,7 +29,12 @@ const SECTION_LABELS = {
   focus: "Focus Mode"
 };
 
-export default function SettingsForm({ isAuthenticated = false, userEmail = "", initialCloudSettings = null }) {
+export default function SettingsForm({
+  isAuthenticated = false,
+  userEmail = "",
+  initialCloudSettings = null,
+  initialProfile = null
+}) {
   const [ready, setReady] = useState(false);
   const [activeSection, setActiveSection] = useState("general");
   const [overlayWhileGenerating, setOverlayWhileGenerating] = useState(defaultExtensionSettings.overlayWhileGenerating);
@@ -41,6 +46,10 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
   const [enabledGames, setEnabledGames] = useState(defaultExtensionSettings.enabledGames);
   const [enabledTopics, setEnabledTopics] = useState(defaultExtensionSettings.enabledTopics);
   const [focusModeEnabled, setFocusModeEnabled] = useState(defaultExtensionSettings.focusModeEnabled);
+  const [profileDisplayName, setProfileDisplayName] = useState("");
+  const [profileUsername, setProfileUsername] = useState("");
+  const [profileStatus, setProfileStatus] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     const s = loadExtensionSettings();
@@ -70,6 +79,12 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
     setFocusModeEnabled(typeof s.focusModeEnabled === "boolean" ? s.focusModeEnabled : defaultExtensionSettings.focusModeEnabled);
     void saveExtensionSettings(s);
   }, [initialCloudSettings]);
+
+  useEffect(() => {
+    if (!initialProfile || typeof initialProfile !== "object") return;
+    setProfileDisplayName(initialProfile.display_name || "");
+    setProfileUsername(initialProfile.username || "");
+  }, [initialProfile]);
 
   useEffect(() => {
     function onWnmSettings(e) {
@@ -130,6 +145,34 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
     void persist({ enabledTopics: normalized });
   }
 
+  async function saveProfile() {
+    if (!isAuthenticated) return;
+    setProfileSaving(true);
+    setProfileStatus("");
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          displayName: profileDisplayName,
+          username: profileUsername
+        })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        setProfileStatus(json?.error || "Could not save profile.");
+        return;
+      }
+      setProfileDisplayName(json.profile?.display_name || "");
+      setProfileUsername(json.profile?.username || "");
+      setProfileStatus("Profile saved.");
+    } catch (e) {
+      setProfileStatus(String(e?.message || e));
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   if (!ready) {
     return <p className="muted-note">Loading preferences…</p>;
   }
@@ -166,6 +209,52 @@ export default function SettingsForm({ isAuthenticated = false, userEmail = "", 
                   <p className="settings-account-line">
                     Signed in as <strong className="settings-account-email">{userEmail}</strong>
                   </p>
+                  <div className="setting-row setting-row--stack">
+                    <div className="setting-label-block">
+                      <label className="setting-label" htmlFor="profile-display-name">
+                        Display name
+                      </label>
+                      <span className="setting-hint">Shown in leaderboards first.</span>
+                    </div>
+                    <div className="setting-control">
+                      <input
+                        id="profile-display-name"
+                        className="input"
+                        value={profileDisplayName}
+                        onChange={(e) => setProfileDisplayName(e.target.value)}
+                        placeholder="How your name should appear"
+                        maxLength={50}
+                      />
+                    </div>
+                  </div>
+                  <div className="setting-row setting-row--stack">
+                    <div className="setting-label-block">
+                      <label className="setting-label" htmlFor="profile-username">
+                        Username / nickname
+                      </label>
+                      <span className="setting-hint">Secondary fallback if display name is empty.</span>
+                    </div>
+                    <div className="setting-control">
+                      <input
+                        id="profile-username"
+                        className="input"
+                        value={profileUsername}
+                        onChange={(e) => setProfileUsername(e.target.value)}
+                        placeholder="Optional nickname"
+                        maxLength={32}
+                      />
+                    </div>
+                  </div>
+                  <div className="settings-account-actions">
+                    <button type="button" className="btn btn-ghost" onClick={saveProfile} disabled={profileSaving}>
+                      {profileSaving ? "Saving..." : "Save profile"}
+                    </button>
+                  </div>
+                  {profileStatus ? (
+                    <p className="muted-note settings-account-hint" role="status">
+                      {profileStatus}
+                    </p>
+                  ) : null}
                   <form action="/auth/signout" method="post" className="settings-account-actions">
                     <button type="submit" className="btn btn-ghost">
                       Log out

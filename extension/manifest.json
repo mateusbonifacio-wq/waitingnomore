@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Keel",
-  "version": "1.0.23",
-  "description": "Keel is what keeps you steady when you start to drift. Calm overlay while ChatGPT or Gemini generates.",
+  "version": "1.0.24",
+  "description": "Keel is what keeps you steady when you start to drift. Calm overlay while ChatGPT, Claude, or Gemini generates.",
   "permissions": ["storage"],
   "action": {
     "default_popup": "popup.html",
@@ -47,6 +47,23 @@
       "matches": ["https://gemini.google.com/*"],
       "js": [
         "sites/gemini-generation.js",
+        "games/registry.js",
+        "games/play-pace.js",
+        "games/current.js",
+        "games/keep-alive.js",
+        "games/quick-pattern.js",
+        "games/micro-memory.js",
+        "games/create-micro-game.js",
+        "brain/questions.js",
+        "content.js"
+      ],
+      "css": ["styles.css"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://claude.ai/*", "https://www.claude.ai/*"],
+      "js": [
+        "sites/claude-generation.js",
         "games/registry.js",
         "games/play-pace.js",
         "games/current.js",

@@ -45,9 +45,14 @@ function metricDisplay(label, value, unit) {
   return `${label}: ${Math.round(n)}`;
 }
 
-function shortUser(userId) {
-  if (!userId || typeof userId !== "string") return "Unknown";
-  return `User ${userId.slice(0, 8)}`;
+function resolveDisplayName(profile) {
+  const displayName = typeof profile?.display_name === "string" ? profile.display_name.trim() : "";
+  if (displayName) return displayName;
+  const username = typeof profile?.username === "string" ? profile.username.trim() : "";
+  if (username) return username;
+  const emailPrefix = typeof profile?.email_prefix === "string" ? profile.email_prefix.trim() : "";
+  if (emailPrefix) return emailPrefix;
+  return "Anonymous";
 }
 
 function buildGameLeaderboard(rows, game, gameMode) {
@@ -136,6 +141,20 @@ export default async function DashboardPage({ searchParams }) {
   const gameLeaderboard = buildGameLeaderboard(gameRows, filters.game, filters.gameMode);
   const brainLeaderboard = buildBrainLeaderboard(brainRows, filters.brainPeriod);
   const brainMinAnswers = filters.brainPeriod === "week" ? 20 : 10;
+  const userIds = Array.from(
+    new Set([...gameLeaderboard.map((x) => x.userId), ...brainLeaderboard.map((x) => x.userId)].filter(Boolean))
+  );
+  let profilesByUserId = {};
+  if (user && userIds.length) {
+    const supabase = getSupabaseServerClient();
+    if (supabase) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id,display_name,username,email_prefix")
+        .in("user_id", userIds);
+      for (const p of data || []) profilesByUserId[p.user_id] = p;
+    }
+  }
 
   return (
     <main className="page">
@@ -213,7 +232,7 @@ export default async function DashboardPage({ searchParams }) {
                 {gameLeaderboard.map((row, idx) => (
                   <tr key={`${row.userId}-${idx}`}>
                     <td>#{idx + 1}</td>
-                    <td>{shortUser(row.userId)}</td>
+                    <td>{resolveDisplayName(profilesByUserId[row.userId])}</td>
                     <td>{metricDisplay(row.metricLabel, row.metricValue, row.metricUnit)}</td>
                   </tr>
                 ))}
@@ -267,7 +286,7 @@ export default async function DashboardPage({ searchParams }) {
                 {brainLeaderboard.map((row, idx) => (
                   <tr key={`${row.userId}-${idx}`}>
                     <td>#{idx + 1}</td>
-                    <td>{shortUser(row.userId)}</td>
+                    <td>{resolveDisplayName(profilesByUserId[row.userId])}</td>
                     <td>{row.accuracy.toFixed(1)}%</td>
                     <td>{row.total}</td>
                   </tr>

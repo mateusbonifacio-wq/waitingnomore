@@ -10,6 +10,7 @@ export const metadata = {
 export default async function SettingsPage() {
   let user = null;
   let initialCloudSettings = null;
+  let initialProfile = null;
 
   try {
     const supabase = getSupabaseServerClient();
@@ -45,6 +46,13 @@ export default async function SettingsPage() {
             focusModeEnabled: data.focus_mode_enabled !== false
           };
         }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name,username,email_prefix")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        initialProfile = profile || null;
       }
     }
   } catch {
@@ -59,6 +67,7 @@ export default async function SettingsPage() {
         isAuthenticated={Boolean(user)}
         userEmail={user?.email || ""}
         initialCloudSettings={initialCloudSettings}
+        initialProfile={initialProfile}
       />
     </main>
   );

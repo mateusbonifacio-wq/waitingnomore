@@ -11,11 +11,29 @@ function sanitizeNextPath(path) {
 
 async function upsertProfile(supabase, user) {
   if (!user?.id) return;
-  const displayName = user.email ? user.email.split("@")[0] : null;
-  await supabase.from("profiles").upsert(
-    { user_id: user.id, display_name: displayName },
-    { onConflict: "user_id" }
-  );
+  const emailPrefix = user.email ? user.email.split("@")[0] : null;
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("user_id,display_name,username,email_prefix")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!existing) {
+    await supabase.from("profiles").upsert(
+      {
+        user_id: user.id,
+        display_name: emailPrefix,
+        username: emailPrefix,
+        email_prefix: emailPrefix
+      },
+      { onConflict: "user_id" }
+    );
+    return;
+  }
+
+  if (!existing.email_prefix && emailPrefix) {
+    await supabase.from("profiles").update({ email_prefix: emailPrefix }).eq("user_id", user.id);
+  }
 }
 
 export default function AuthEmailForm({ nextPath = "/settings" }) {
