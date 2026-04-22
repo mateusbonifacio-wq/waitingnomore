@@ -436,7 +436,16 @@
       data,
       occurred_at: new Date().toISOString()
     };
-    chrome.runtime.sendMessage({ type: "wnm-push-keel-event", event }, () => void chrome.runtime.lastError);
+    chrome.runtime.sendMessage({ type: "wnm-push-keel-event", event }, (response) => {
+      const err = chrome.runtime.lastError;
+      if (err) {
+        console.warn("[keel events] sendMessage failed", { type, error: err.message });
+        return;
+      }
+      if (!response || response.ok !== true) {
+        console.warn("[keel events] background rejected event", { type, response });
+      }
+    });
   }
 
   function createSessionRecord(summary, generationEndedSuccessfully) {
@@ -849,7 +858,18 @@
     }
     const sessionRecord = createSessionRecord(summary, generationEndedSuccessfully);
     if (modeKey === MODES.PLAY) {
-      pushKeelCloudEvent("game_played", { game: sessionPlayGameId, score: Number(summary.hits) || 0 });
+      const isKeepAlive = sessionPlayGameId === "keep_alive";
+      const metricKey = isKeepAlive ? "time_survived" : "score";
+      const metricLabel = isKeepAlive ? "Time survived" : "Score";
+      const metricUnit = isKeepAlive ? "s" : "pts";
+      const metricValue = isKeepAlive ? Number(summary.durationSec) || 0 : Number(summary.hits) || 0;
+      pushKeelCloudEvent("game_played", {
+        game: sessionPlayGameId,
+        metric_key: metricKey,
+        metric_label: metricLabel,
+        metric_unit: metricUnit,
+        metric_value: Number(metricValue.toFixed(isKeepAlive ? 2 : 0))
+      });
     }
     trackEvent("session_ended", {
       sessionMode: summary.sessionMode,

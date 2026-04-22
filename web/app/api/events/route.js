@@ -17,10 +17,17 @@ function isValidEventPayload(type, data) {
   if (!data || typeof data !== "object") return false;
   if (type === "game_played") {
     const game = data.game;
-    const score = data.score;
+    const metricKey = typeof data.metric_key === "string" ? data.metric_key.trim() : "";
+    const metricLabel = typeof data.metric_label === "string" ? data.metric_label.trim() : "";
+    const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit.trim() : "";
+    const metricValue = Number(data.metric_value);
     if (typeof game !== "string" || !GAME_IDS.has(game)) return false;
-    const n = Number(score);
-    if (!Number.isFinite(n) || n < 0 || n > 500000) return false;
+    if (!metricKey || metricKey.length > 48) return false;
+    if (!metricLabel || metricLabel.length > 64) return false;
+    if (metricUnit.length > 16) return false;
+    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return false;
+    if (game === "keep_alive" && metricKey !== "time_survived") return false;
+    if (game !== "keep_alive" && metricKey !== "score") return false;
     return true;
   }
   if (type === "brain_answer") {
@@ -40,6 +47,7 @@ export async function POST(request) {
 
   const { user, error: authErr } = await getAuthenticatedUser(request);
   if (!user) {
+    console.warn("[api/events] unauthorized request", { authErr });
     return NextResponse.json(
       { ok: false, error: authErr === "supabase_not_configured" ? authErr : "unauthorized" },
       { status: authErr === "supabase_not_configured" ? 503 : 401 }
@@ -109,8 +117,10 @@ export async function POST(request) {
 
   const { error } = await supabase.from("events").insert(rows);
   if (error) {
+    console.error("[api/events] insert failed", { message: error.message, rows: rows.length, userId: user.id });
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  console.info("[api/events] inserted", { rows: rows.length, userId: user.id });
   return NextResponse.json({ ok: true, inserted: rows.length });
 }

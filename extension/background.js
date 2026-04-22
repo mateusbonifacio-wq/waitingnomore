@@ -150,7 +150,15 @@ function sanitizeOutboundEvent(ev) {
   const data = ev.data;
   if (!data || typeof data !== "object") return null;
   if (type === "game_played") {
-    if (!MICRO_GAME_IDS.has(data.game) || typeof data.score !== "number" || !Number.isFinite(data.score)) return null;
+    const metricKey = typeof data.metric_key === "string" ? data.metric_key : "";
+    const metricLabel = typeof data.metric_label === "string" ? data.metric_label : "";
+    const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit : "";
+    const metricValue = Number(data.metric_value);
+    if (!MICRO_GAME_IDS.has(data.game)) return null;
+    if (!metricKey || metricKey.length > 48) return null;
+    if (!metricLabel || metricLabel.length > 64) return null;
+    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return null;
+    if (metricUnit && metricUnit.length > 16) return null;
   } else {
     const topic = typeof data.topic === "string" ? data.topic.trim() : "";
     if (!topic || topic.length > 64 || typeof data.correct !== "boolean") return null;
@@ -184,10 +192,12 @@ function flushKeelOutboundQueue() {
       let queue = r[KEEL_OUTBOUND_EVENTS_KEY];
       if (!Array.isArray(queue)) queue = [];
       if (!auth || typeof auth !== "object" || !auth.accessToken || !auth.apiOrigin) {
+        console.warn("[keel events] flush skipped: no auth in extension storage");
         resolve({ ok: false, reason: "no_auth" });
         return;
       }
       if (!isAllowedKeelApiOrigin(auth.apiOrigin)) {
+        console.warn("[keel events] flush skipped: invalid api origin", auth.apiOrigin);
         resolve({ ok: false, reason: "bad_origin" });
         return;
       }
@@ -221,6 +231,7 @@ function flushKeelOutboundQueue() {
           }
           if (!res.ok) {
             const t = await res.text();
+            console.warn("[keel events] api insert failed", { status: res.status, body: t.slice(0, 200) });
             return { ok: false, reason: `http_${res.status}`, detail: t.slice(0, 200) };
           }
           const remaining = queue.slice(batch.length);
@@ -259,7 +270,12 @@ function pushKeelEventAndFlush(event, sendResponse) {
         sendResponse({ ok: false, error: chrome.runtime.lastError.message });
         return;
       }
-      flushKeelOutboundQueue().then(sendResponse);
+      flushKeelOutboundQueue().then((res) => {
+        if (!res?.ok) {
+          console.warn("[keel events] flush result", res);
+        }
+        sendResponse(res);
+      });
     });
   });
 }

@@ -42,6 +42,14 @@ function labelTopic(id) {
   return TOPIC_LABELS[id] || id;
 }
 
+function formatPerformance(metricLabel, metricValue, metricUnit) {
+  const n = Number(metricValue);
+  if (!Number.isFinite(n)) return "—";
+  if (metricUnit === "s") return `${metricLabel}: ${n.toFixed(1)}s`;
+  if (metricUnit) return `${metricLabel}: ${Math.round(n)} ${metricUnit}`;
+  return `${metricLabel}: ${Math.round(n)}`;
+}
+
 function aggregateEvents(rows) {
   const gameRows = [];
   const brainRows = [];
@@ -50,15 +58,29 @@ function aggregateEvents(rows) {
     else if (r.type === "brain_answer") brainRows.push(r);
   }
 
-  const gameScores = gameRows.map((r) => Number(r.data?.score)).filter((n) => Number.isFinite(n));
   const totalGames = gameRows.length;
-  const bestScore = gameScores.length ? Math.max(...gameScores) : 0;
   const recentGames = gameRows.slice(0, 12).map((r) => ({
     id: r.id,
     occurredAt: r.occurred_at,
     game: r.data?.game,
-    score: Number(r.data?.score) || 0
+    metricLabel: typeof r.data?.metric_label === "string" ? r.data.metric_label : "Performance",
+    metricUnit: typeof r.data?.metric_unit === "string" ? r.data.metric_unit : "",
+    metricValue: Number(r.data?.metric_value)
   }));
+
+  const bestByGame = {};
+  for (const r of gameRows) {
+    const game = typeof r.data?.game === "string" ? r.data.game : null;
+    const metricLabel = typeof r.data?.metric_label === "string" ? r.data.metric_label : "Performance";
+    const metricUnit = typeof r.data?.metric_unit === "string" ? r.data.metric_unit : "";
+    const metricValue = Number(r.data?.metric_value);
+    if (!game || !Number.isFinite(metricValue)) continue;
+    if (!bestByGame[game] || metricValue > bestByGame[game].metricValue) {
+      bestByGame[game] = { game, metricLabel, metricUnit, metricValue };
+    }
+  }
+  const bestPerformanceRows = Object.values(bestByGame).sort((a, b) => b.metricValue - a.metricValue);
+  const overallBestPerformance = bestPerformanceRows[0] || null;
 
   let brainCorrect = 0;
   const byTopic = {};
@@ -84,7 +106,8 @@ function aggregateEvents(rows) {
 
   return {
     totalGames,
-    bestScore,
+    overallBestPerformance,
+    bestPerformanceRows,
     recentGames,
     totalBrain,
     brainAccuracyPct,
@@ -151,12 +174,55 @@ export default async function DashboardPage() {
           <p className="section-title">Game mode</p>
           <div className="stats-grid">
             <StatCard label="Games played" value={String(stats.totalGames)} hint="Finished play sessions (per reply)" />
-            <StatCard label="Best score" value={String(stats.bestScore)} hint="Highest hit count in one session" />
+            <StatCard
+              label="Best performance"
+              value={
+                stats.overallBestPerformance
+                  ? formatPerformance(
+                      stats.overallBestPerformance.metricLabel,
+                      stats.overallBestPerformance.metricValue,
+                      stats.overallBestPerformance.metricUnit
+                    )
+                  : "—"
+              }
+              hint={
+                stats.overallBestPerformance
+                  ? `${labelGame(stats.overallBestPerformance.game)}`
+                  : "No play data yet"
+              }
+            />
             <StatCard
               label="Tracked events"
               value={String(events.length)}
               hint="Game + brain rows loaded (cap 800)"
             />
+          </div>
+
+          <p className="section-title">Best by game</p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Game</th>
+                  <th>Best performance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.bestPerformanceRows.map((row) => (
+                  <tr key={row.game}>
+                    <td>{labelGame(row.game)}</td>
+                    <td>{formatPerformance(row.metricLabel, row.metricValue, row.metricUnit)}</td>
+                  </tr>
+                ))}
+                {!stats.bestPerformanceRows.length ? (
+                  <tr>
+                    <td colSpan={2} className="muted-note" style={{ textAlign: "center" }}>
+                      No play sessions yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
 
           <p className="section-title">Recent games</p>
@@ -166,7 +232,7 @@ export default async function DashboardPage() {
                 <tr>
                   <th>When</th>
                   <th>Game</th>
-                  <th>Score</th>
+                  <th>Performance</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,7 +240,7 @@ export default async function DashboardPage() {
                   <tr key={g.id}>
                     <td>{formatDate(g.occurredAt)}</td>
                     <td>{labelGame(g.game)}</td>
-                    <td>{g.score}</td>
+                    <td>{formatPerformance(g.metricLabel, g.metricValue, g.metricUnit)}</td>
                   </tr>
                 ))}
                 {!stats.recentGames.length ? (
