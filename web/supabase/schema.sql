@@ -90,7 +90,8 @@ create index if not exists idx_events_user_type on public.events (user_id, type)
 alter table public.events enable row level security;
 
 drop policy if exists "events_select_own" on public.events;
-create policy "events_select_own" on public.events for select using (auth.uid() = user_id);
+drop policy if exists "events_select_authenticated" on public.events;
+create policy "events_select_authenticated" on public.events for select using (auth.role() = 'authenticated');
 drop policy if exists "events_insert_own" on public.events;
 create policy "events_insert_own" on public.events for insert with check (auth.uid() = user_id);
 

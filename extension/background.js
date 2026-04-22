@@ -150,11 +150,15 @@ function sanitizeOutboundEvent(ev) {
   const data = ev.data;
   if (!data || typeof data !== "object") return null;
   if (type === "game_played") {
+    const mode = typeof data.mode === "string" ? data.mode : "";
+    const metricType = typeof data.metric_type === "string" ? data.metric_type : "";
     const metricKey = typeof data.metric_key === "string" ? data.metric_key : "";
     const metricLabel = typeof data.metric_label === "string" ? data.metric_label : "";
     const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit : "";
     const metricValue = Number(data.metric_value);
     if (!MICRO_GAME_IDS.has(data.game)) return null;
+    if (!["chill", "medium", "intense"].includes(mode)) return null;
+    if (!metricType || metricType.length > 48) return null;
     if (!metricKey || metricKey.length > 48) return null;
     if (!metricLabel || metricLabel.length > 64) return null;
     if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return null;

@@ -863,8 +863,11 @@
       const metricLabel = isKeepAlive ? "Time survived" : "Score";
       const metricUnit = isKeepAlive ? "s" : "pts";
       const metricValue = isKeepAlive ? Number(summary.durationSec) || 0 : Number(summary.hits) || 0;
+      const leaderboardMode = userPrefs.playIntensity === "normal" ? "medium" : userPrefs.playIntensity;
       pushKeelCloudEvent("game_played", {
         game: sessionPlayGameId,
+        mode: leaderboardMode,
+        metric_type: metricKey,
         metric_key: metricKey,
         metric_label: metricLabel,
         metric_unit: metricUnit,

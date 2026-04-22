@@ -17,17 +17,21 @@ function isValidEventPayload(type, data) {
   if (!data || typeof data !== "object") return false;
   if (type === "game_played") {
     const game = data.game;
+    const mode = typeof data.mode === "string" ? data.mode.trim() : "";
+    const metricType = typeof data.metric_type === "string" ? data.metric_type.trim() : "";
     const metricKey = typeof data.metric_key === "string" ? data.metric_key.trim() : "";
     const metricLabel = typeof data.metric_label === "string" ? data.metric_label.trim() : "";
     const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit.trim() : "";
     const metricValue = Number(data.metric_value);
     if (typeof game !== "string" || !GAME_IDS.has(game)) return false;
+    if (!["chill", "medium", "intense"].includes(mode)) return false;
+    if (!metricType || metricType.length > 48) return false;
     if (!metricKey || metricKey.length > 48) return false;
     if (!metricLabel || metricLabel.length > 64) return false;
     if (metricUnit.length > 16) return false;
     if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return false;
-    if (game === "keep_alive" && metricKey !== "time_survived") return false;
-    if (game !== "keep_alive" && metricKey !== "score") return false;
+    if (game === "keep_alive" && (metricType !== "time_survived" || metricKey !== "time_survived")) return false;
+    if (game !== "keep_alive" && (metricType !== "score" || metricKey !== "score")) return false;
     return true;
   }
   if (type === "brain_answer") {
