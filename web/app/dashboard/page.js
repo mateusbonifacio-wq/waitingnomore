@@ -54,8 +54,10 @@ function buildGameLeaderboard(rows, game, gameMode) {
   const bestByUser = new Map();
   for (const r of rows) {
     const d = r.data || {};
-    if (d.game !== game) continue;
-    if (d.mode !== gameMode) continue;
+    const rowGame = d.game_type || d.game;
+    const rowMode = d.mode || "medium";
+    if (rowGame !== game) continue;
+    if (rowMode !== gameMode) continue;
     const metricType = d.metric_type || d.metric_key;
     const metricValue = Number(d.metric_value);
     if (!metricType || !Number.isFinite(metricValue)) continue;
