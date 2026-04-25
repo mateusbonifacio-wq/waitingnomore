@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.38";
+  const IDLE_EXTENSION_VERSION = "1.0.39";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -44,7 +44,9 @@
     triggerWhen: "always",
     smartTriggerMinGenerationSec: 3,
     themeMode: "dark",
+    selectedPlayGame: "auto",
     enabledGames: ["current"],
+    selectedBrainTopic: "auto",
     enabledTopics: [],
     focusModeEnabled: true
   };
@@ -179,15 +181,18 @@
   function coerceUserPrefs(raw) {
     const base = { ...defaultUserPrefs };
     if (!raw || typeof raw !== "object") return base;
+    const gr = globalThis.__KEEL_GAMES_REGISTRY;
     if (typeof raw.overlayWhileGenerating === "boolean") base.overlayWhileGenerating = raw.overlayWhileGenerating;
     if (typeof raw.showSessionSummary === "boolean") base.showSessionSummary = raw.showSessionSummary;
     if (["play", "brain", "focus"].includes(raw.defaultSessionMode)) base.defaultSessionMode = raw.defaultSessionMode;
     if (["chill", "normal", "intense"].includes(raw.playIntensity)) base.playIntensity = raw.playIntensity;
     if (["always", "smart"].includes(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
     if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
+    if (raw.selectedPlayGame === "auto" || (gr && gr.VALID && gr.VALID.has(raw.selectedPlayGame))) {
+      base.selectedPlayGame = raw.selectedPlayGame;
+    }
     const sec = Number(raw.smartTriggerMinGenerationSec);
     if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
-    const gr = globalThis.__KEEL_GAMES_REGISTRY;
     if (gr && typeof gr.normalizeEnabledGames === "function") {
       base.enabledGames = gr.normalizeEnabledGames(raw.enabledGames);
     } else if (Array.isArray(raw.enabledGames)) {
@@ -201,6 +206,9 @@
       bBank && Array.isArray(bBank.TOPIC_IDS)
         ? [...bBank.TOPIC_IDS]
         : ["general_knowledge", "pop_culture", "science", "geography", "logic", "fun_random"];
+    if (raw.selectedBrainTopic === "auto" || topicIds.includes(raw.selectedBrainTopic)) {
+      base.selectedBrainTopic = raw.selectedBrainTopic;
+    }
     if (Array.isArray(raw.enabledTopics)) {
       if (raw.enabledTopics.length === 0) {
         base.enabledTopics = [];
@@ -226,6 +234,14 @@
     if (!Array.isArray(raw) || raw.length === 0) return all.length ? all : ["logic"];
     const filtered = raw.filter((t) => typeof t === "string" && all.includes(t));
     return filtered.length ? filtered : all;
+  }
+
+  function preferredBrainTopicId() {
+    const selected = userPrefs.selectedBrainTopic;
+    if (!selected || selected === "auto") return null;
+    const active = activeBrainTopicIds();
+    if (active.includes(selected)) return selected;
+    return null;
   }
 
   const BRAIN_RECENT_MAX = 10;
@@ -260,7 +276,12 @@
       return currentBrainQuestion;
     }
     const topics = activeBrainTopicIds();
+    const preferredTopic = preferredBrainTopicId();
     let pool = bank.ALL_QUESTIONS.filter((q) => q && topics.includes(q.topic) && isValidBrainQuestionShape(q));
+    if (preferredTopic) {
+      const preferredPool = pool.filter((q) => q && q.topic === preferredTopic);
+      if (preferredPool.length) pool = preferredPool;
+    }
     if (!pool.length) {
       pool = bank.ALL_QUESTIONS.filter((q) => q && isValidBrainQuestionShape(q));
     }
@@ -333,7 +354,9 @@
       triggerWhen: userPrefs.triggerWhen,
       smartTriggerMinGenerationSec: userPrefs.smartTriggerMinGenerationSec,
       themeMode: userPrefs.themeMode,
+      selectedPlayGame: userPrefs.selectedPlayGame,
       enabledGames: userPrefs.enabledGames,
+      selectedBrainTopic: userPrefs.selectedBrainTopic,
       enabledTopics: userPrefs.enabledTopics,
       focusModeEnabled: userPrefs.focusModeEnabled
     });
@@ -361,6 +384,7 @@
     if (!globalThis.chrome?.storage?.local) return;
     const data = await chrome.storage.local.get([EXTENSION_SETTINGS_KEY, THEME_STORAGE_KEY]);
     userPrefs = coerceUserPrefs(data[EXTENSION_SETTINGS_KEY]);
+    console.log("[Keel settings] loaded selected game:", userPrefs.selectedPlayGame);
     const t = normalizeTheme(data[THEME_STORAGE_KEY]);
     if (t) userPrefs.themeMode = t;
     logAppliedUserPrefs("initial load from chrome.storage.local");
@@ -936,10 +960,23 @@
     recentBrainQuestionIds = [];
     currentBrainQuestion = null;
     const gReg = globalThis.__KEEL_GAMES_REGISTRY;
-    sessionPlayGameId =
-      gReg && typeof gReg.pickRandomGameId === "function"
-        ? gReg.pickRandomGameId(userPrefs.enabledGames)
-        : "current";
+    const selected = userPrefs.selectedPlayGame;
+    if (selected && selected !== "auto" && gReg && gReg.VALID && gReg.VALID.has(selected)) {
+      sessionPlayGameId = selected;
+      console.log("[Keel game] launching selected game:", sessionPlayGameId);
+    } else if (gReg && typeof gReg.pickRandomGameId === "function") {
+      sessionPlayGameId = gReg.pickRandomGameId(userPrefs.enabledGames);
+      const reason =
+        selected === "auto"
+          ? "explicit auto"
+          : selected
+            ? "selected game missing or invalid"
+            : "no selected game";
+      console.log("[Keel game] fallback/random used because:", reason);
+    } else {
+      sessionPlayGameId = "current";
+      console.log("[Keel game] fallback/random used because:", "game registry unavailable");
+    }
     trackEvent("session_started", { mode: currentMode, microGame: sessionPlayGameId });
   }
 
@@ -1251,7 +1288,7 @@
       if (!isGenerating && card && !card.classList.contains("hidden")) {
         console.warn("Keel: forcing overlay hide via fallback after generation end");
         if (gen && gen.siteId === "chatgpt") {
-          console.log("[Keel ChatGPT] watchdog forced end");
+          console.log("[Keel ChatGPT] forced cleanup");
         }
         clearModeTimers();
         setOverlayVisibility(false);
@@ -1392,6 +1429,7 @@
           const ch = changes[EXTENSION_SETTINGS_KEY];
           const oldVal = ch.oldValue ? coerceUserPrefs(ch.oldValue) : null;
           userPrefs = coerceUserPrefs(ch.newValue);
+          console.log("[Keel settings] loaded selected game:", userPrefs.selectedPlayGame);
           if (DEBUG_SETTINGS_SYNC && WNM_SYNC_LOG) {
             console.log("[wnm sync] EXT content: parsed settings blob (diff)", {
               previousDefaultMode: oldVal?.defaultSessionMode,

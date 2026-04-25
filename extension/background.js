@@ -15,7 +15,9 @@ const defaultUserPrefs = {
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
+  selectedPlayGame: "auto",
   enabledGames: ["current"],
+  selectedBrainTopic: "auto",
   enabledTopics: [],
   focusModeEnabled: true
 };
@@ -41,6 +43,12 @@ function coerceUserPrefs(raw) {
   if (["chill", "normal", "intense"].includes(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (["always", "smart"].includes(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
   if (["light", "dark"].includes(raw.themeMode)) base.themeMode = raw.themeMode;
+  if (raw.selectedPlayGame === "auto" || MICRO_GAME_IDS.has(raw.selectedPlayGame)) {
+    base.selectedPlayGame = raw.selectedPlayGame;
+  }
+  if (raw.selectedBrainTopic === "auto" || BRAIN_TOPIC_IDS.includes(raw.selectedBrainTopic)) {
+    base.selectedBrainTopic = raw.selectedBrainTopic;
+  }
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
@@ -120,6 +128,7 @@ function handleWebSettingsMessage(message, sendResponse) {
   }
   console.log("[wnm sync] EXT background: incoming raw settings from web", message.settings);
   const merged = coerceUserPrefs(message.settings);
+  console.log("[Keel settings] synced selected game:", merged.selectedPlayGame);
   console.log("[wnm sync] EXT background: coerced → persisted", merged);
   chrome.storage.local.set(
     {

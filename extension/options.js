@@ -9,7 +9,9 @@ const defaultUserPrefs = {
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
+  selectedPlayGame: "auto",
   enabledGames: ["current"],
+  selectedBrainTopic: "auto",
   enabledTopics: [],
   focusModeEnabled: true
 };
@@ -39,6 +41,12 @@ function coerceUserPrefs(raw) {
   if (INTENSITY.has(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (TRIGGER.has(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
   if (raw.themeMode === "light" || raw.themeMode === "dark") base.themeMode = raw.themeMode;
+  if (raw.selectedPlayGame === "auto" || MICRO_GAME_IDS.has(raw.selectedPlayGame)) {
+    base.selectedPlayGame = raw.selectedPlayGame;
+  }
+  if (raw.selectedBrainTopic === "auto" || BRAIN_TOPIC_IDS.includes(raw.selectedBrainTopic)) {
+    base.selectedBrainTopic = raw.selectedBrainTopic;
+  }
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);

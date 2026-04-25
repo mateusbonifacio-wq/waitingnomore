@@ -43,7 +43,9 @@ export default function SettingsForm({
   const [playIntensity, setPlayIntensity] = useState(defaultExtensionSettings.playIntensity);
   const [triggerWhen, setTriggerWhen] = useState(defaultExtensionSettings.triggerWhen);
   const [themeMode, setThemeMode] = useState(defaultExtensionSettings.themeMode);
+  const [selectedPlayGame, setSelectedPlayGame] = useState(defaultExtensionSettings.selectedPlayGame);
   const [enabledGames, setEnabledGames] = useState(defaultExtensionSettings.enabledGames);
+  const [selectedBrainTopic, setSelectedBrainTopic] = useState(defaultExtensionSettings.selectedBrainTopic);
   const [enabledTopics, setEnabledTopics] = useState(defaultExtensionSettings.enabledTopics);
   const [focusModeEnabled, setFocusModeEnabled] = useState(defaultExtensionSettings.focusModeEnabled);
   const [profileDisplayName, setProfileDisplayName] = useState("");
@@ -59,6 +61,8 @@ export default function SettingsForm({
     setPlayIntensity(s.playIntensity);
     setTriggerWhen(s.triggerWhen);
     setThemeMode(s.themeMode);
+    setSelectedPlayGame(s.selectedPlayGame || "auto");
+    setSelectedBrainTopic(s.selectedBrainTopic || "auto");
     setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
     setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
     setFocusModeEnabled(Boolean(s.focusModeEnabled));
@@ -67,17 +71,28 @@ export default function SettingsForm({
 
   useEffect(() => {
     if (!initialCloudSettings || typeof initialCloudSettings !== "object") return;
-    const s = initialCloudSettings;
-    setOverlayWhileGenerating(Boolean(s.overlayWhileGenerating));
-    setDefaultSessionMode(s.defaultSessionMode || defaultExtensionSettings.defaultSessionMode);
-    setShowSessionSummary(Boolean(s.showSessionSummary));
-    setPlayIntensity(s.playIntensity || defaultExtensionSettings.playIntensity);
-    setTriggerWhen(s.triggerWhen || defaultExtensionSettings.triggerWhen);
-    setThemeMode(s.themeMode || defaultExtensionSettings.themeMode);
-    setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
-    setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
-    setFocusModeEnabled(typeof s.focusModeEnabled === "boolean" ? s.focusModeEnabled : defaultExtensionSettings.focusModeEnabled);
-    void saveExtensionSettings(s);
+    const local = loadExtensionSettings();
+    const merged = { ...local, ...initialCloudSettings };
+    if (
+      merged.selectedPlayGame !== "auto" &&
+      !GAME_OPTIONS.some((g) => g.id === merged.selectedPlayGame)
+    ) {
+      merged.selectedPlayGame = local.selectedPlayGame || "auto";
+    }
+    setOverlayWhileGenerating(Boolean(merged.overlayWhileGenerating));
+    setDefaultSessionMode(merged.defaultSessionMode || defaultExtensionSettings.defaultSessionMode);
+    setShowSessionSummary(Boolean(merged.showSessionSummary));
+    setPlayIntensity(merged.playIntensity || defaultExtensionSettings.playIntensity);
+    setTriggerWhen(merged.triggerWhen || defaultExtensionSettings.triggerWhen);
+    setThemeMode(merged.themeMode || defaultExtensionSettings.themeMode);
+    setSelectedPlayGame(merged.selectedPlayGame || defaultExtensionSettings.selectedPlayGame || "auto");
+    setSelectedBrainTopic(merged.selectedBrainTopic || defaultExtensionSettings.selectedBrainTopic || "auto");
+    setEnabledGames(normalizeEnabledGamesList(merged.enabledGames));
+    setEnabledTopics(normalizeEnabledTopicsList(merged.enabledTopics));
+    setFocusModeEnabled(
+      typeof merged.focusModeEnabled === "boolean" ? merged.focusModeEnabled : defaultExtensionSettings.focusModeEnabled
+    );
+    void saveExtensionSettings(merged);
   }, [initialCloudSettings]);
 
   useEffect(() => {
@@ -96,6 +111,12 @@ export default function SettingsForm({
       if (s.playIntensity) setPlayIntensity(s.playIntensity);
       if (s.triggerWhen) setTriggerWhen(s.triggerWhen);
       if (s.themeMode === "light" || s.themeMode === "dark") setThemeMode(s.themeMode);
+      if (s.selectedPlayGame === "auto" || GAME_OPTIONS.some((g) => g.id === s.selectedPlayGame)) {
+        setSelectedPlayGame(s.selectedPlayGame);
+      }
+      if (s.selectedBrainTopic === "auto" || BRAIN_TOPIC_OPTIONS.some((t) => t.id === s.selectedBrainTopic)) {
+        setSelectedBrainTopic(s.selectedBrainTopic);
+      }
       if (Array.isArray(s.enabledGames)) setEnabledGames(normalizeEnabledGamesList(s.enabledGames));
       if (Array.isArray(s.enabledTopics)) setEnabledTopics(normalizeEnabledTopicsList(s.enabledTopics));
       if (typeof s.focusModeEnabled === "boolean") setFocusModeEnabled(s.focusModeEnabled);
@@ -411,6 +432,33 @@ export default function SettingsForm({
                 Games
               </h2>
               <p className="section-lead">In Play mode, Keel picks one enabled game per wait. At least one stays on.</p>
+              <div className="setting-row setting-row--stack">
+                <div className="setting-label-block">
+                  <span className="setting-label" id="label-selected-game">
+                    Launch game
+                  </span>
+                  <span className="setting-hint">Pick one game always, or Auto for random among enabled games.</span>
+                </div>
+                <div className="setting-control">
+                  <select
+                    className="input"
+                    value={selectedPlayGame}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedPlayGame(v);
+                      void persist({ selectedPlayGame: v });
+                    }}
+                    aria-labelledby="label-selected-game"
+                  >
+                    <option value="auto">Auto (random enabled game)</option>
+                    {GAME_OPTIONS.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               {GAME_OPTIONS.map((g) => (
                 <div key={g.id} className="setting-row setting-row--stack">
                   <div className="setting-label-block">
@@ -441,6 +489,33 @@ export default function SettingsForm({
               <p className="section-lead">
                 Short multiple-choice prompts. All topics on by default; turn topics off to narrow the pool.
               </p>
+              <div className="setting-row setting-row--stack">
+                <div className="setting-label-block">
+                  <span className="setting-label" id="label-brain-topic">
+                    Launch topic
+                  </span>
+                  <span className="setting-hint">Pick one topic always, or Auto for random from allowed topics.</span>
+                </div>
+                <div className="setting-control">
+                  <select
+                    className="input"
+                    value={selectedBrainTopic}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSelectedBrainTopic(v);
+                      void persist({ selectedBrainTopic: v });
+                    }}
+                    aria-labelledby="label-brain-topic"
+                  >
+                    <option value="auto">Auto (random allowed topic)</option>
+                    {BRAIN_TOPIC_OPTIONS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               {BRAIN_TOPIC_OPTIONS.map((t) => (
                 <div key={t.id} className="setting-row setting-row--stack">
                   <div className="setting-label-block">

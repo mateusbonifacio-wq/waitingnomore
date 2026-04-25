@@ -245,6 +245,7 @@ export function applyWebDocumentTheme(theme) {
  * @property {number} smartTriggerMinGenerationSec
  * @property {ThemeMode} themeMode
  * @property {MicroGameId[]} enabledGames
+ * @property {"auto"|BrainTopicId} selectedBrainTopic
  * @property {BrainTopicId[]} enabledTopics — empty = all topics; otherwise restrict pool
  * @property {boolean} focusModeEnabled
  */
@@ -259,7 +260,9 @@ export const defaultExtensionSettings = {
   triggerWhen: "always",
   smartTriggerMinGenerationSec: 3,
   themeMode: "dark",
+  selectedPlayGame: "auto",
   enabledGames: ["current"],
+  selectedBrainTopic: "auto",
   enabledTopics: [],
   focusModeEnabled: true
 };
@@ -315,6 +318,12 @@ export function coerceSettings(raw) {
   if (INTENSITY.has(raw.playIntensity)) base.playIntensity = raw.playIntensity;
   if (TRIGGER.has(raw.triggerWhen)) base.triggerWhen = raw.triggerWhen;
   if (THEME.has(raw.themeMode)) base.themeMode = raw.themeMode;
+  if (raw.selectedPlayGame === "auto" || MICRO_GAME_IDS.has(raw.selectedPlayGame)) {
+    base.selectedPlayGame = raw.selectedPlayGame;
+  }
+  if (raw.selectedBrainTopic === "auto" || BRAIN_TOPIC_ID_SET.has(raw.selectedBrainTopic)) {
+    base.selectedBrainTopic = raw.selectedBrainTopic;
+  }
   const sec = Number(raw.smartTriggerMinGenerationSec);
   if (Number.isFinite(sec) && sec >= 1 && sec <= 30) base.smartTriggerMinGenerationSec = sec;
   base.enabledGames = normalizeEnabledGamesList(raw.enabledGames);
@@ -353,11 +362,13 @@ export async function saveExtensionSettings(partial) {
   const next = coerceSettings({ ...loadExtensionSettings(), ...partial, schemaVersion: 1 });
   wlog("WEB: merged full settings (localStorage + next push)", next);
   window.localStorage.setItem(EXTENSION_SETTINGS_STORAGE_KEY, JSON.stringify(next));
+  console.log("[Keel settings] saved selected game:", next.selectedPlayGame);
   applyWebDocumentTheme(next.themeMode);
   dispatchSettingsChanged(next);
 
   const pushResult = await pushSettingsToExtension(next);
   if (pushResult.ok) {
+    console.log("[Keel settings] synced selected game:", next.selectedPlayGame);
     wlog("WEB: push finished OK — ChatGPT tab content script should log receive + apply next");
   } else {
     wwarn("WEB: push FAILED — extension unchanged. localStorage on this site still saved.", pushResult.reason);

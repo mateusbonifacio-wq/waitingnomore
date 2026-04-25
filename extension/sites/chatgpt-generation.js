@@ -3,17 +3,8 @@
  * Loaded before content.js; registers globalThis.__KEEL_GENERATION_API.
  */
 (() => {
-  const NS = "[Keel ChatGPT]";
-
-  /** How long "not generating" must hold before we report end (avoids false ends on stream gaps). */
-  const STABLE_END_MS = 1600;
-
-  function dlog(msg, extra) {
-    if (typeof console === "object" && typeof console.log === "function") {
-      if (extra !== undefined) console.log(NS, msg, extra);
-      else console.log(NS, msg);
-    }
-  }
+  /** How long instant "idle" must hold before we report end (avoids false ends on stream gaps / DOM swaps). */
+  const STABLE_END_MS = 2000;
 
   function isElementInteractable(el) {
     if (!el || !(el instanceof Element)) return false;
@@ -23,6 +14,19 @@
     if (style.visibility === "hidden" || style.display === "none") return false;
     if (Number(style.opacity) === 0) return false;
     if (style.pointerEvents === "none") return false;
+    return true;
+  }
+
+  /** Stop control present in layout but failed strict interactable checks (Mac / zoom / overlay edge cases). */
+  function isStopLooselyInLayout(button) {
+    if (!button || !(button instanceof Element)) return false;
+    if (!isStopGenerationControl(button)) return false;
+    if (button.hasAttribute("hidden")) return false;
+    const rect = button.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return false;
+    const style = globalThis.getComputedStyle(button);
+    if (style.visibility === "hidden" || style.display === "none") return false;
+    if (Number(style.opacity) < 0.05) return false;
     return true;
   }
 
@@ -38,7 +42,7 @@
 
   function hasVisibleStopControl() {
     return Array.from(document.querySelectorAll("button")).some(
-      (button) => isStopGenerationControl(button) && isElementInteractable(button)
+      (button) => isStopGenerationControl(button) && (isElementInteractable(button) || isStopLooselyInLayout(button))
     );
   }
 
@@ -46,6 +50,9 @@
     if (document.querySelector(".result-streaming")) return true;
     if (document.querySelector('[data-is-streaming="true"]')) return true;
     if (document.querySelector("[aria-live='assertive'] .result-streaming")) return true;
+    if (document.querySelector("[class*='result-stream' i], [class*='_streaming' i], [class*='is-streaming' i]"))
+      return true;
+    if (document.querySelector('[data-testid*="stream" i], [data-testid*="streaming" i]')) return true;
     return false;
   }
 
@@ -53,7 +60,8 @@
     if (hasVisibleStopControl()) return true;
     if (hasStreamingDomSignals()) return true;
     const stopGen = document.querySelector("[aria-label='Stop generating']");
-    return !!(stopGen && isElementInteractable(stopGen));
+    if (stopGen && (isElementInteractable(stopGen) || isStopLooselyInLayout(stopGen))) return true;
+    return false;
   }
 
   let inGenerationCycle = false;
@@ -61,15 +69,24 @@
   let wasSnapTrue = false;
 
   function detectGeneratingState() {
+    try {
+      return detectGeneratingStateInner();
+    } catch (_e) {
+      if (inGenerationCycle) return true;
+      return false;
+    }
+  }
+
+  function detectGeneratingStateInner() {
     const snap = snapshotIsGenerating();
     if (snap) {
-      if (wasSnapTrue === false) {
-        dlog("generation start detected");
+      if (wasSnapTrue === false && typeof console === "object" && typeof console.log === "function") {
+        console.log("[Keel ChatGPT] start");
       }
       wasSnapTrue = true;
       inGenerationCycle = true;
-      if (pendingEndSince != null) {
-        dlog("pending end cancelled, generation resumed");
+      if (pendingEndSince != null && typeof console === "object" && typeof console.log === "function") {
+        console.log("[Keel ChatGPT] end cancelled");
       }
       pendingEndSince = null;
       return true;
@@ -81,9 +98,10 @@
     }
 
     if (pendingEndSince == null) {
-      dlog("possible generation end detected (instant signals show idle)");
       pendingEndSince = Date.now();
-      dlog("entering pending end (stable-end debounce)", { ms: STABLE_END_MS });
+      if (typeof console === "object" && typeof console.log === "function") {
+        console.log("[Keel ChatGPT] possible end");
+      }
     }
 
     const held = Date.now() - pendingEndSince;
@@ -91,8 +109,9 @@
       return true;
     }
 
-    dlog("stable end confirmed (idle held through debounce window)", { heldMs: Math.round(held) });
-    dlog("session finalized (host overlay will end generation on next poll)");
+    if (typeof console === "object" && typeof console.log === "function") {
+      console.log("[Keel ChatGPT] stable end");
+    }
     inGenerationCycle = false;
     pendingEndSince = null;
     wasSnapTrue = false;
