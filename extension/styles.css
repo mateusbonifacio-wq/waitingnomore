@@ -23,6 +23,29 @@
   pointer-events: none;
 }
 
+#idle-time-overlay-root .idle-time-drag-handle {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 3;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 244, 245, 0.72);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: grab;
+  pointer-events: auto;
+  user-select: none;
+}
+
+#idle-time-overlay-root.idle-time-root--dragging .idle-time-drag-handle {
+  cursor: grabbing;
+}
+
 #idle-time-test-badge {
   position: fixed;
   top: max(10px, env(safe-area-inset-top));
@@ -743,6 +766,12 @@
 
 #idle-time-overlay-root.idle-time-root--theme-light .idle-time-version {
   color: rgba(15, 23, 42, 0.35);
+}
+
+#idle-time-overlay-root.idle-time-root--theme-light .idle-time-drag-handle {
+  border-color: rgba(15, 23, 42, 0.16);
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(15, 23, 42, 0.62);
 }
 
 #idle-time-overlay-root.idle-time-root--theme-light .idle-time-title {

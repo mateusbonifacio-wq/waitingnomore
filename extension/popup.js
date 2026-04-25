@@ -74,6 +74,7 @@ function openKeelTab(url) {
 
 function init() {
   const btn = document.getElementById("open-keel");
+  const iconBtn = document.getElementById("open-keel-icon");
   const hint = document.getElementById("open-keel-hint");
   const noUrl = document.getElementById("open-keel-no-url");
 
@@ -85,6 +86,7 @@ function init() {
 
     if (!openUrl) {
       btn.disabled = true;
+      if (iconBtn) iconBtn.disabled = true;
       btn.textContent = "Set Keel URL in manifest";
       hint.textContent = "Add homepage_url to manifest.json (see README).";
       noUrl.hidden = false;
@@ -93,6 +95,7 @@ function init() {
 
     noUrl.hidden = true;
     btn.disabled = false;
+    if (iconBtn) iconBtn.disabled = false;
     btn.textContent = needSync ? "Open Keel to sync login" : "Open Keel";
     hint.textContent = needSync
       ? "Opens Keel in a new tab so your session can sync to this extension."
@@ -105,6 +108,15 @@ function init() {
     openKeelTab(openUrl);
     window.close();
   });
+
+  if (iconBtn) {
+    iconBtn.addEventListener("click", async () => {
+      const openUrl = await resolveKeelOpenUrl();
+      if (!openUrl) return;
+      openKeelTab(openUrl);
+      window.close();
+    });
+  }
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[KEEL_API_AUTH_KEY]) return;

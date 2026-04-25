@@ -31,6 +31,7 @@
     eventQueue: "idle_overlay_event_queue",
     meta: "idle_overlay_meta"
   };
+  const OVERLAY_POSITION_KEY = "idle_overlay_position_v1";
 
   const EXTENSION_SETTINGS_KEY = "waitingnomore.extensionSettings.v1";
   const THEME_STORAGE_KEY = "theme";
@@ -68,6 +69,12 @@
   let pendingTickTimeout = null;
   let lastTickMs = 0;
   let summaryDismissAbort = null;
+  let overlayPosition = null;
+  let overlayPositionLoaded = false;
+  let isOverlayDragging = false;
+  let dragPointerId = null;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
   /** Which micro-game runs for this generation (set in startSession). */
   let sessionPlayGameId = "current";
   /** Cleanup for the active play-mode micro-game (set by renderPlayMode). */
@@ -517,12 +524,105 @@
     document.documentElement.appendChild(badge);
   }
 
+  function normalizeOverlayPosition(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const x = Number(raw.x);
+    const y = Number(raw.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  function clampOverlayPosition(x, y) {
+    const w = root?.offsetWidth || 280;
+    const h = root?.offsetHeight || 220;
+    const pad = 8;
+    const maxX = Math.max(pad, window.innerWidth - w - pad);
+    const maxY = Math.max(pad, window.innerHeight - h - pad);
+    return {
+      x: Math.min(maxX, Math.max(pad, x)),
+      y: Math.min(maxY, Math.max(pad, y))
+    };
+  }
+
+  function applyOverlayPosition(pos) {
+    if (!root || !pos) return;
+    const clamped = clampOverlayPosition(pos.x, pos.y);
+    root.style.right = "auto";
+    root.style.bottom = "auto";
+    root.style.left = `${Math.round(clamped.x)}px`;
+    root.style.top = `${Math.round(clamped.y)}px`;
+    overlayPosition = clamped;
+  }
+
+  async function persistOverlayPosition() {
+    if (!overlayPosition || !globalThis.chrome?.storage?.local) return;
+    try {
+      await chrome.storage.local.set({ [OVERLAY_POSITION_KEY]: overlayPosition });
+    } catch (e) {
+      console.warn("[keel overlay] failed to persist overlay position", e);
+    }
+  }
+
+  async function loadOverlayPosition() {
+    overlayPositionLoaded = true;
+    if (!globalThis.chrome?.storage?.local) return;
+    try {
+      const data = await chrome.storage.local.get([OVERLAY_POSITION_KEY]);
+      overlayPosition = normalizeOverlayPosition(data?.[OVERLAY_POSITION_KEY]);
+    } catch (e) {
+      console.warn("[keel overlay] failed to load overlay position", e);
+      overlayPosition = null;
+    }
+  }
+
+  function attachOverlayDragBehavior() {
+    if (!root || !card) return;
+    const handle = root.querySelector("[data-drag-handle]");
+    if (!handle) return;
+    const onPointerMove = (event) => {
+      if (!isOverlayDragging || event.pointerId !== dragPointerId) return;
+      const next = clampOverlayPosition(event.clientX - dragOffsetX, event.clientY - dragOffsetY);
+      applyOverlayPosition(next);
+    };
+    const onPointerUp = (event) => {
+      if (!isOverlayDragging || event.pointerId !== dragPointerId) return;
+      isOverlayDragging = false;
+      dragPointerId = null;
+      root.classList.remove("idle-time-root--dragging");
+      handle.releasePointerCapture(event.pointerId);
+      void persistOverlayPosition();
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      if (card.classList.contains("hidden")) return;
+      event.preventDefault();
+      const rect = root.getBoundingClientRect();
+      const next = clampOverlayPosition(rect.left, rect.top);
+      applyOverlayPosition(next);
+      isOverlayDragging = true;
+      dragPointerId = event.pointerId;
+      dragOffsetX = event.clientX - next.x;
+      dragOffsetY = event.clientY - next.y;
+      root.classList.add("idle-time-root--dragging");
+      handle.setPointerCapture(event.pointerId);
+    });
+    handle.addEventListener("pointermove", onPointerMove);
+    handle.addEventListener("pointerup", onPointerUp);
+    handle.addEventListener("pointercancel", onPointerUp);
+  }
+
   function createOverlay() {
     root = document.createElement("div");
     root.id = "idle-time-overlay-root";
     root.innerHTML = `
       <div class="idle-time-card hidden" role="status" aria-live="polite">
         <span class="idle-time-version" aria-hidden="true">v${IDLE_EXTENSION_VERSION}</span>
+        <button
+          type="button"
+          class="idle-time-drag-handle"
+          data-drag-handle
+          aria-label="Move Keel overlay"
+          title="Drag to move Keel overlay"
+        >Move</button>
         <div class="idle-time-header">
           <span class="idle-time-title">Keel</span>
           <span class="idle-time-tagline">Before you drift.</span>
@@ -539,6 +639,7 @@
     document.documentElement.appendChild(root);
     card = root.querySelector(".idle-time-card");
     modeBody = root.querySelector(".idle-time-body");
+    attachOverlayDragBehavior();
 
     root.querySelector(".idle-time-tabs").addEventListener("click", (event) => {
       if (card && card.classList.contains("idle-time-card--summary")) return;
@@ -1061,6 +1162,10 @@
   let lastOverlayPositionMs = 0;
   function updateOverlaySafePosition() {
     if (!root || !card || card.classList.contains("hidden")) return;
+    if (overlayPosition) {
+      applyOverlayPosition(overlayPosition);
+      return;
+    }
     const now = Date.now();
     if (now - lastOverlayPositionMs < 320) return;
     lastOverlayPositionMs = now;
@@ -1269,6 +1374,9 @@
       });
     }
     await persistence.load();
+    if (!overlayPositionLoaded) {
+      await loadOverlayPosition();
+    }
     exposeInternalHistory();
     createTestBadge();
     createOverlay();
@@ -1281,6 +1389,11 @@
         resizeDebounce = setTimeout(() => {
           resizeDebounce = null;
           lastOverlayPositionMs = 0;
+          if (overlayPosition && !isOverlayDragging) {
+            applyOverlayPosition(overlayPosition);
+            void persistOverlayPosition();
+            return;
+          }
           updateOverlaySafePosition();
         }, 140);
       },

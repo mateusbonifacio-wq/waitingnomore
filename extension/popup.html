@@ -27,6 +27,34 @@
         font-weight: 600;
         letter-spacing: -0.02em;
       }
+      .popup-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      #open-keel-icon {
+        margin: 0;
+        width: 28px;
+        height: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        color: #f4f4f5;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        line-height: 1;
+      }
+      #open-keel-icon:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      #open-keel-icon:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
       p {
         margin: 0;
         color: var(--muted);
@@ -67,8 +95,18 @@
     </style>
   </head>
   <body>
-    <h1>Keel</h1>
-    <p>Before you drift.</p>
+    <div class="popup-head">
+      <div>
+        <h1>Keel</h1>
+        <p>Before you drift.</p>
+      </div>
+      <button
+        type="button"
+        id="open-keel-icon"
+        title="Open Keel settings"
+        aria-label="Open Keel settings"
+      >↗</button>
+    </div>
     <div class="open-keel-wrap">
       <button type="button" id="open-keel">Open Keel</button>
       <p id="open-keel-hint"></p>
