@@ -56,6 +56,7 @@
   let brainNextTimer = null;
   let summaryHideTimer = null;
   let summaryExitTimer = null;
+  let generationEndFallbackTimer = null;
   /** Last N brain question ids to reduce repeats (per browser session). */
   let recentBrainQuestionIds = [];
   /** @type {{ id: string, topic: string, question: string, answers: string[], correct: number } | null} */
@@ -669,9 +670,11 @@
     if (brainNextTimer) clearTimeout(brainNextTimer);
     if (summaryHideTimer) clearTimeout(summaryHideTimer);
     if (summaryExitTimer) clearTimeout(summaryExitTimer);
+    if (generationEndFallbackTimer) clearTimeout(generationEndFallbackTimer);
     brainNextTimer = null;
     summaryHideTimer = null;
     summaryExitTimer = null;
+    generationEndFallbackTimer = null;
   }
 
   function clearModeTimersKeepSummaryTimer() {
@@ -1142,7 +1145,13 @@
 
   function syncGenerationOverlay() {
     if (!userPrefs.overlayWhileGenerating && !isGenerating) return;
-    const raw = gen.detectGeneratingState();
+    let raw = false;
+    try {
+      raw = !!gen.detectGeneratingState();
+    } catch (e) {
+      console.warn("Keel: detectGeneratingState failed; forcing safe hidden state", e);
+      raw = false;
+    }
     const now = Date.now();
     if (raw && !rawGenerationSince) rawGenerationSince = now;
     if (!raw) rawGenerationSince = 0;
@@ -1174,23 +1183,32 @@
     const pad = Math.max(24, Math.min(40, Math.round(26 + vpW * 0.012)));
     const clearance = 24;
     let minObstacleTop = Infinity;
+    const shouldScanHostUi = isGenerating;
 
-    document.querySelectorAll("textarea, [contenteditable='true']").forEach((el) => {
-      if (el.closest("#idle-time-overlay-root")) return;
-      const r = el.getBoundingClientRect();
-      if (r.width < 100 || r.height < 16) return;
-      if (r.top < vpH * 0.45) return;
-      minObstacleTop = Math.min(minObstacleTop, r.top);
-    });
+    if (shouldScanHostUi) {
+      document.querySelectorAll("textarea, [contenteditable='true']").forEach((el) => {
+        if (el.closest("#idle-time-overlay-root")) return;
+        const r = el.getBoundingClientRect();
+        if (r.width < 100 || r.height < 16) return;
+        if (r.top < vpH * 0.45) return;
+        minObstacleTop = Math.min(minObstacleTop, r.top);
+      });
 
-    document.querySelectorAll("button").forEach((btn) => {
-      if (btn.closest("#idle-time-overlay-root")) return;
-      if (btn.closest("#idle-context-pin-root")) return;
-      if (!gen.isStopGenerationControl(btn) || !isElementInteractable(btn)) return;
-      const r = btn.getBoundingClientRect();
-      if (r.top < vpH * 0.35) return;
-      minObstacleTop = Math.min(minObstacleTop, r.top);
-    });
+      document.querySelectorAll("button").forEach((btn) => {
+        if (btn.closest("#idle-time-overlay-root")) return;
+        if (btn.closest("#idle-context-pin-root")) return;
+        let isStop = false;
+        try {
+          isStop = !!gen.isStopGenerationControl(btn);
+        } catch (_e) {
+          isStop = false;
+        }
+        if (!isStop || !isElementInteractable(btn)) return;
+        const r = btn.getBoundingClientRect();
+        if (r.top < vpH * 0.35) return;
+        minObstacleTop = Math.min(minObstacleTop, r.top);
+      });
+    }
 
     root.style.top = "auto";
     root.style.right = "auto";
@@ -1211,6 +1229,10 @@
   function onGenerationStateChange(nextState) {
     if (isGenerating === nextState) return;
     isGenerating = nextState;
+    if (generationEndFallbackTimer) {
+      clearTimeout(generationEndFallbackTimer);
+      generationEndFallbackTimer = null;
+    }
     if (isGenerating) {
       if (summaryHideTimer) clearTimeout(summaryHideTimer);
       summaryHideTimer = null;
@@ -1223,6 +1245,15 @@
       return;
     }
     freezeActiveSessionUi();
+    // Safety net for slow/heavy host pages: never leave overlay stuck visible after generation ended.
+    generationEndFallbackTimer = window.setTimeout(() => {
+      generationEndFallbackTimer = null;
+      if (!isGenerating && card && !card.classList.contains("hidden")) {
+        console.warn("Keel: forcing overlay hide via fallback after generation end");
+        clearModeTimers();
+        setOverlayVisibility(false);
+      }
+    }, SUMMARY_MAX_MS + 1500);
 
     function completeGenerationEnd() {
       const summary = finishSession(true);
@@ -1324,6 +1355,7 @@
     if (!runtimeStats.sessionActive) return;
     clearModeTimers();
     finishSession(false);
+    setOverlayVisibility(false);
   }
 
   async function init() {
@@ -1400,6 +1432,7 @@
       { passive: true }
     );
     window.addEventListener("beforeunload", handlePageUnload);
+    window.addEventListener("pagehide", handlePageUnload);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         requestKeelOutboundFlush("visibilitychange");

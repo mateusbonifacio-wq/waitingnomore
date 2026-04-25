@@ -55,16 +55,34 @@ function resolveDisplayName(profile) {
   return "Anonymous";
 }
 
+function normalizeLeaderboardMode(rawMode) {
+  const mode = typeof rawMode === "string" ? rawMode.trim().toLowerCase() : "";
+  if (!mode) return "medium";
+  // Legacy compatibility: older extension/settings used "normal".
+  if (mode === "normal") return "medium";
+  if (mode === "chill" || mode === "medium" || mode === "intense") return mode;
+  return "medium";
+}
+
+function resolveGameMetricValue(d) {
+  const direct = Number(d.metric_value);
+  if (Number.isFinite(direct)) return direct;
+  // Legacy compatibility: older events may store score directly.
+  const legacyScore = Number(d.score);
+  if (Number.isFinite(legacyScore)) return legacyScore;
+  return NaN;
+}
+
 function buildGameLeaderboard(rows, game, gameMode) {
   const bestByUser = new Map();
   for (const r of rows) {
     const d = r.data || {};
     const rowGame = d.game_type || d.game;
-    const rowMode = d.mode || "medium";
+    const rowMode = normalizeLeaderboardMode(d.mode);
     if (rowGame !== game) continue;
     if (rowMode !== gameMode) continue;
-    const metricType = d.metric_type || d.metric_key;
-    const metricValue = Number(d.metric_value);
+    const metricType = d.metric_type || d.metric_key || "score";
+    const metricValue = resolveGameMetricValue(d);
     if (!metricType || !Number.isFinite(metricValue)) continue;
     const key = r.user_id;
     const current = bestByUser.get(key);
