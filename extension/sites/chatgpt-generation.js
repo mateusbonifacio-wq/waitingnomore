@@ -3,6 +3,18 @@
  * Loaded before content.js; registers globalThis.__KEEL_GENERATION_API.
  */
 (() => {
+  const NS = "[Keel ChatGPT]";
+
+  /** How long "not generating" must hold before we report end (avoids false ends on stream gaps). */
+  const STABLE_END_MS = 1600;
+
+  function dlog(msg, extra) {
+    if (typeof console === "object" && typeof console.log === "function") {
+      if (extra !== undefined) console.log(NS, msg, extra);
+      else console.log(NS, msg);
+    }
+  }
+
   function isElementInteractable(el) {
     if (!el || !(el instanceof Element)) return false;
     const rect = el.getBoundingClientRect();
@@ -37,11 +49,54 @@
     return false;
   }
 
-  function detectGeneratingState() {
+  function snapshotIsGenerating() {
     if (hasVisibleStopControl()) return true;
     if (hasStreamingDomSignals()) return true;
     const stopGen = document.querySelector("[aria-label='Stop generating']");
     return !!(stopGen && isElementInteractable(stopGen));
+  }
+
+  let inGenerationCycle = false;
+  let pendingEndSince = null;
+  let wasSnapTrue = false;
+
+  function detectGeneratingState() {
+    const snap = snapshotIsGenerating();
+    if (snap) {
+      if (wasSnapTrue === false) {
+        dlog("generation start detected");
+      }
+      wasSnapTrue = true;
+      inGenerationCycle = true;
+      if (pendingEndSince != null) {
+        dlog("pending end cancelled, generation resumed");
+      }
+      pendingEndSince = null;
+      return true;
+    }
+
+    if (!inGenerationCycle) {
+      wasSnapTrue = false;
+      return false;
+    }
+
+    if (pendingEndSince == null) {
+      dlog("possible generation end detected (instant signals show idle)");
+      pendingEndSince = Date.now();
+      dlog("entering pending end (stable-end debounce)", { ms: STABLE_END_MS });
+    }
+
+    const held = Date.now() - pendingEndSince;
+    if (held < STABLE_END_MS) {
+      return true;
+    }
+
+    dlog("stable end confirmed (idle held through debounce window)", { heldMs: Math.round(held) });
+    dlog("session finalized (host overlay will end generation on next poll)");
+    inGenerationCycle = false;
+    pendingEndSince = null;
+    wasSnapTrue = false;
+    return false;
   }
 
   globalThis.__KEEL_GENERATION_API = {

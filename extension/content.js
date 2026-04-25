@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.37";
+  const IDLE_EXTENSION_VERSION = "1.0.38";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -1250,6 +1250,9 @@
       generationEndFallbackTimer = null;
       if (!isGenerating && card && !card.classList.contains("hidden")) {
         console.warn("Keel: forcing overlay hide via fallback after generation end");
+        if (gen && gen.siteId === "chatgpt") {
+          console.log("[Keel ChatGPT] watchdog forced end");
+        }
         clearModeTimers();
         setOverlayVisibility(false);
       }
