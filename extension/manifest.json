@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Keel",
-  "version": "1.0.24",
+  "version": "1.0.37",
   "description": "Keel is what keeps you steady when you start to drift. Calm overlay while ChatGPT, Claude, or Gemini generates.",
+  "homepage_url": "https://waitingnomore.vercel.app",
   "permissions": ["storage"],
   "action": {
     "default_popup": "popup.html",
@@ -62,6 +63,7 @@
     },
     {
       "matches": ["https://claude.ai/*", "https://www.claude.ai/*"],
+      "all_frames": true,
       "js": [
         "sites/claude-generation.js",
         "games/registry.js",

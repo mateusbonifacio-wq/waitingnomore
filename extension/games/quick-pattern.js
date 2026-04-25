@@ -71,11 +71,6 @@
       const expected = pattern[stepIndex];
       if (idx !== expected) {
         ctx.runtimeStats.playMisses += 1;
-        ctx.trackEvent("play_miss", {
-          microGame: ctx.gameId,
-          totalMisses: ctx.runtimeStats.playMisses,
-          totalHits: ctx.runtimeStats.hits
-        });
         ctx.updateHud();
         display.textContent = "Again";
         detachKeyCapture();
@@ -91,7 +86,6 @@
         const reactionMs = Math.round(performance.now() - inputStartedAt);
         ctx.runtimeStats.reactionMsSamples.push(reactionMs);
         ctx.runtimeStats.hits += 1;
-        ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs });
         ctx.updateHud();
         display.textContent = "Nice";
         detachKeyCapture();

@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.24";
+  const IDLE_EXTENSION_VERSION = "1.0.37";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -8,7 +8,6 @@
   // (code preserved under extension/experimental/contextExport/)
 
   if (window.__keelOverlayInjected) return;
-  window.__keelOverlayInjected = true;
 
   const gen = globalThis.__KEEL_GENERATION_API;
   if (!gen || typeof gen.detectGeneratingState !== "function" || typeof gen.isStopGenerationControl !== "function") {
@@ -16,14 +15,15 @@
     return;
   }
 
-  console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded [${gen.siteId || "unknown"}]`);
+  console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded [${gen.siteId || "unknown"}] (frame: ${self === top ? "top" : "child"})`);
 
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
   const SUMMARY_MIN_MS = 2800;
   const SUMMARY_MAX_MS = 7200;
-  /** Delay before the next brain question after an answer. Independent of play intensity (chill/normal/intense). */
-  const BRAIN_NEXT_QUESTION_DELAY_MS = 1000;
+  /** Delay before the next brain question after an answer. Keep short for snappy feel. */
+  const BRAIN_NEXT_QUESTION_DELAY_MS = 420;
   const GENERATION_POLL_MS = 280;
+  const MUTATION_TICK_MIN_GAP_MS = 120;
   const MAX_STORED_SESSIONS = 200;
   const MAX_STORED_EVENTS = 600;
   const STORAGE_KEYS = {
@@ -63,6 +63,10 @@
   let card;
   let modeBody;
   let generationPollTimer = null;
+  let hostDomObserver = null;
+  let pendingTickRaf = 0;
+  let pendingTickTimeout = null;
+  let lastTickMs = 0;
   let summaryDismissAbort = null;
   /** Which micro-game runs for this generation (set in startSession). */
   let sessionPlayGameId = "current";
@@ -429,7 +433,10 @@
 
   /** Queue game/brain analytics for upload to Keel web (background → /api/events). */
   function pushKeelCloudEvent(type, data) {
-    if (!globalThis.chrome?.runtime?.sendMessage) return;
+    if (!globalThis.chrome?.runtime?.sendMessage) {
+      console.error("[keel events] cannot queue event: chrome.runtime.sendMessage unavailable", { type });
+      return;
+    }
     const event = {
       id: `kce_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       type,
@@ -439,11 +446,31 @@
     chrome.runtime.sendMessage({ type: "wnm-push-keel-event", event }, (response) => {
       const err = chrome.runtime.lastError;
       if (err) {
-        console.warn("[keel events] sendMessage failed", { type, error: err.message });
+        console.error("[keel events] sendMessage to background failed", { type, error: err.message, event });
         return;
       }
       if (!response || response.ok !== true) {
-        console.warn("[keel events] background rejected event", { type, response });
+        console.error("[keel events] cloud event not accepted or flush failed", {
+          type,
+          response,
+          reason: response && response.reason,
+          detail: response && response.detail,
+          error: response && response.error
+        });
+      }
+    });
+  }
+
+  function requestKeelOutboundFlush(reason) {
+    if (!globalThis.chrome?.runtime?.sendMessage) return;
+    chrome.runtime.sendMessage({ type: "wnm-flush-keel-events" }, (response) => {
+      const err = chrome.runtime.lastError;
+      if (err) {
+        console.error("[keel events] flush request failed", { reason, error: err.message });
+        return;
+      }
+      if (response && !response.ok && (response.queued > 0 || response.reason === "network")) {
+        console.error("[keel events] flush did not complete after tab visible", { reason, response });
       }
     });
   }
@@ -674,16 +701,28 @@
     const elHits = modeBody.querySelector("[data-play-hits]");
     const elMiss = modeBody.querySelector("[data-play-miss]");
     const elAvg = modeBody.querySelector("[data-play-avg]");
+    let avgCacheCount = 0;
+    let avgCacheTotal = 0;
 
     function updateHud() {
       elHits.textContent = String(runtimeStats.hits);
       elMiss.textContent = String(runtimeStats.playMisses);
       const samples = runtimeStats.reactionMsSamples;
       if (!samples.length) {
+        avgCacheCount = 0;
+        avgCacheTotal = 0;
         elAvg.textContent = "—";
         return;
       }
-      const avg = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+      if (samples.length < avgCacheCount) {
+        avgCacheCount = 0;
+        avgCacheTotal = 0;
+      }
+      for (let i = avgCacheCount; i < samples.length; i++) {
+        avgCacheTotal += Number(samples[i]) || 0;
+      }
+      avgCacheCount = samples.length;
+      const avg = Math.round(avgCacheTotal / avgCacheCount);
       elAvg.textContent = `${avg}ms`;
     }
 
@@ -754,12 +793,8 @@
         answersEl.querySelectorAll("button").forEach((btn) => {
           btn.disabled = true;
         });
-        trackEvent("brain_answer", {
-          correct: isCorrect,
-          brainTopic: item.topic,
-          brainQuestionId: typeof item.id === "string" ? item.id : "unknown"
-        });
-        pushKeelCloudEvent("brain_answer", { topic: item.topic, correct: isCorrect });
+        const topic = String(item.topic ?? "").trim().slice(0, 96);
+        pushKeelCloudEvent("brain_answer", { topic, correct: isCorrect });
         brainNextTimer = setTimeout(() => {
           pickBrainQuestion();
           renderBrainMode();
@@ -1005,6 +1040,7 @@
   }
 
   function syncGenerationOverlay() {
+    if (!userPrefs.overlayWhileGenerating && !isGenerating) return;
     const raw = gen.detectGeneratingState();
     const now = Date.now();
     if (raw && !rawGenerationSince) rawGenerationSince = now;
@@ -1119,10 +1155,44 @@
       syncGenerationOverlay();
       updateOverlaySafePosition();
     };
-    const observer = new MutationObserver(() => tick());
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+    const scheduleTick = () => {
+      const now = Date.now();
+      const elapsed = now - lastTickMs;
+      if (elapsed >= MUTATION_TICK_MIN_GAP_MS) {
+        if (pendingTickRaf) cancelAnimationFrame(pendingTickRaf);
+        pendingTickRaf = requestAnimationFrame(() => {
+          pendingTickRaf = 0;
+          lastTickMs = Date.now();
+          tick();
+        });
+        return;
+      }
+      if (pendingTickTimeout) return;
+      pendingTickTimeout = setTimeout(() => {
+        pendingTickTimeout = null;
+        if (pendingTickRaf) cancelAnimationFrame(pendingTickRaf);
+        pendingTickRaf = requestAnimationFrame(() => {
+          pendingTickRaf = 0;
+          lastTickMs = Date.now();
+          tick();
+        });
+      }, Math.max(16, MUTATION_TICK_MIN_GAP_MS - elapsed));
+    };
+    if (hostDomObserver) {
+      try {
+        hostDomObserver.disconnect();
+      } catch (_e) {
+        /* ignore observer disconnect errors */
+      }
+    }
+    hostDomObserver = new MutationObserver(() => scheduleTick());
+    hostDomObserver.observe(document.body, { childList: true, subtree: true });
+    lastTickMs = Date.now();
     tick();
-    generationPollTimer = setInterval(tick, GENERATION_POLL_MS);
+    generationPollTimer = setInterval(() => {
+      lastTickMs = Date.now();
+      tick();
+    }, GENERATION_POLL_MS);
   }
 
   function handlePageUnload() {
@@ -1130,12 +1200,45 @@
       clearInterval(generationPollTimer);
       generationPollTimer = null;
     }
+    if (hostDomObserver) {
+      try {
+        hostDomObserver.disconnect();
+      } catch (_e) {
+        /* ignore observer disconnect errors */
+      }
+      hostDomObserver = null;
+    }
+    if (pendingTickRaf) {
+      cancelAnimationFrame(pendingTickRaf);
+      pendingTickRaf = 0;
+    }
+    if (pendingTickTimeout) {
+      clearTimeout(pendingTickTimeout);
+      pendingTickTimeout = null;
+    }
     if (!runtimeStats.sessionActive) return;
     clearModeTimers();
     finishSession(false);
   }
 
   async function init() {
+    if (window.__keelOverlayInjected) return;
+    if (typeof gen.shouldInjectInFrame === "function" && !gen.shouldInjectInFrame()) {
+      if (gen.siteId === "claude" && typeof gen.getFrameInjection === "function") {
+        console.log("Keel: not mounting in this frame (Claude policy).", gen.getFrameInjection());
+      } else {
+        console.log("Keel: not mounting in this frame (site policy).", gen.siteId);
+      }
+      return;
+    }
+    window.__keelOverlayInjected = true;
+    if (typeof gen.bootstrapGenerationWatch === "function") {
+      try {
+        gen.bootstrapGenerationWatch();
+      } catch (e) {
+        console.warn("Keel: bootstrapGenerationWatch failed", e);
+      }
+    }
     await refreshUserPrefs();
     if (globalThis.chrome?.storage?.onChanged) {
       chrome.storage.onChanged.addListener((changes, area) => {
@@ -1184,6 +1287,11 @@
       { passive: true }
     );
     window.addEventListener("beforeunload", handlePageUnload);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        requestKeelOutboundFlush("visibilitychange");
+      }
+    });
     observeHostDom();
   }
 

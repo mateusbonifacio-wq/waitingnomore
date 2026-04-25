@@ -1,0 +1,96 @@
+---
+pid: 40116
+cwd: "C:\\Users\\mateu"
+command: "ls"
+started_at: 2026-04-15T16:55:14.257Z
+running_for_seconds: 165   
+---
+
+
+    Directory: C:\Users\mateu
+
+
+Mode                 LastWriteTime         Length Name                                                                 
+----                 -------------         ------ ----                                                                 
+d-----        06/04/2025     14:06                .anaconda                                                            
+d-----        13/04/2025     00:46                .conda                                                               
+d-----        18/02/2025     12:46                .continuum                                                           
+d-----        24/01/2026     13:03                .cursor                                                              
+d-----        24/01/2026     13:07                .cursor-sandbox                                                      
+d-----        17/03/2026     10:09                .ibm_cplex_studio                                                    
+d-----        07/04/2025     12:03                .ipynb_checkpoints                                                   
+d-----        25/02/2025     13:08                .ipython                                                             
+d-----        25/02/2025     12:51                .jupyter                                                             
+d-----        02/04/2025     17:14                .matplotlib                                                          
+d-----        18/07/2025     11:06                .ms-ad                                                               
+d-----        24/01/2026     13:07                .sbx-denybin                                                         
+d-----        15/11/2024     13:38                .tobii                                                               
+d-----        07/11/2025     13:01                .vscode                                                              
+d-----        03/04/2025     13:09                anaconda3                                                            
+d-r---        14/06/2025     11:21                Contacts                                                             
+d-----        17/03/2026     10:09                Documents                                                            
+d-r---        15/04/2026     16:32                Downloads                                                            
+d-r---        14/06/2025     11:21                Favorites                                                            
+d-r---        14/06/2025     11:21                Links                                                                
+d-----        31/03/2025     16:33                Modules                                                              
+d-r---        14/06/2025     11:21                Music                                                                
+d-----        19/11/2025     14:26                node_modules                                                         
+dar--l        10/10/2025     17:05                OneDrive                                                             
+d-r---        14/06/2025     11:21                Saved Games                                                          
+d-r---        14/06/2025     11:21                Searches                                                             
+d-----        18/11/2025     19:19                src                                                                  
+d-----        19/11/2025     21:05                validade-mvp                                                         
+d-r---        14/06/2025     11:21                Videos                                                               
+-a----        18/02/2025     12:47            146 .condarc                                                             
+-a----        18/11/2025     19:33            326 .env.example                                                         
+-a----        21/10/2025     18:35            194 .gitconfig                                                           
+-a----        27/12/2025     12:09             81 .gitignore                                                           
+-a----        06/03/2025     14:15           3594 aula6.03                                                             
+-a----        15/04/2026     17:56           7507 content.js                                                           
+-a----        06/04/2025     15:21          88306 EX05 - Exercicios sobre tipos de dados e programacao em larga        
+                                                  escala.ipynb                                                         
+-a----        15/04/2026     17:56            348 manifest.json                                                        
+-a----        31/03/2025     15:54           8381 modules-ex05.zip                                                     
+-a----        19/11/2025     14:28          56335 package-lock.json                                                    
+-a----        18/11/2025     19:33            805 package.json                                                         
+-a----        18/11/2025     19:33           5198 README.md                                                            
+-a----        15/04/2026     17:57           2444 styles.css                                                           
+-a----        05/03/2025     11:24           5058 testes                                                               
+-a----        05/03/2025     14:02          28316 testes 2                                                             
+-a----        18/03/2025     01:19          10403 testes map 2                                                         
+-a----        18/11/2025     19:22            499 tsconfig.json                                                        
+-a----        25/02/2025     13:28           1958 Untitled.ipynb                                                       
+-a----        27/02/2025     13:22            628 Untitled1.ipynb                                                      
+-a----        03/04/2025     14:23           4025 Untitled10.ipynb                                                     
+-a----        06/04/2025     16:03          12327 Untitled11.ipynb                                                     
+-a----        06/04/2025     15:26          11798 Untitled12.ipynb                                                     
+-a----        06/04/2025     15:28           3429 Untitled13.ipynb                                                     
+-a----        06/04/2025     19:36           7300 Untitled14.ipynb                                                     
+-a----        06/04/2025     17:27           7303 Untitled15.ipynb                                                     
+-a----        06/04/2025     17:32          36849 Untitled16.ipynb                                                     
+-a----        06/04/2025     17:36          24225 Untitled17.ipynb                                                     
+-a----        06/04/2025     19:36           9712 Untitled18.ipynb                                                     
+-a----        06/04/2025     19:36           9730 Untitled19.ipynb                                                     
+-a----        13/03/2025     14:18           8206 Untitled2.ipynb                                                      
+-a----        07/04/2025     12:20          57842 Untitled20.ipynb                                                     
+-a----        07/04/2025     16:19          67312 Untitled21.ipynb                                                     
+-a----        18/03/2025     08:57           3712 Untitled3.ipynb                                                      
+-a----        18/03/2025     13:44           8823 Untitled4.ipynb                                                      
+-a----        26/03/2025     13:56           2882 Untitled5.ipynb                                                      
+-a----        31/03/2025     12:47           4993 Untitled6.ipynb                                                      
+-a----        31/03/2025     12:43            337 Untitled7.ipynb                                                      
+-a----        01/04/2025     11:05          17650 Untitled8.ipynb                                                      
+-a----        03/04/2025     13:09          81797 Untitled9.ipynb                                                      
+Get-ChildItem : Um item com a mesma chave j� foi adicionado.
+At C:\Users\mateu\AppData\Local\Temp\ps-script-d6f8de52-d4b3-41a8-a173-bb5bc5b08a6e.ps1:31 char:16
++     $envVars = Get-ChildItem Env: | Sort-Object Name
++                ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Get-ChildItem], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException,Microsoft.PowerShell.Commands.GetChildItemCommand
+ 
+
+---
+exit_code: 0
+elapsed_ms: 166027
+ended_at: 2026-04-15T16:58:00.284Z
+---

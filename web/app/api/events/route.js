@@ -11,10 +11,10 @@ const MAX_BATCH = 40;
 /**
  * @param {string} type
  * @param {unknown} data
- * @returns {boolean}
+ * @returns {{ ok: true } | { ok: false, reason: string }}
  */
-function isValidEventPayload(type, data) {
-  if (!data || typeof data !== "object") return false;
+function validateEventPayload(type, data) {
+  if (!data || typeof data !== "object") return { ok: false, reason: "missing_data" };
   if (type === "game_played") {
     const game = data.game;
     const mode = typeof data.mode === "string" ? data.mode.trim() : "";
@@ -23,24 +23,31 @@ function isValidEventPayload(type, data) {
     const metricLabel = typeof data.metric_label === "string" ? data.metric_label.trim() : "";
     const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit.trim() : "";
     const metricValue = Number(data.metric_value);
-    if (typeof game !== "string" || !GAME_IDS.has(game)) return false;
-    if (!["chill", "medium", "intense"].includes(mode)) return false;
-    if (!metricType || metricType.length > 48) return false;
-    if (!metricKey || metricKey.length > 48) return false;
-    if (!metricLabel || metricLabel.length > 64) return false;
-    if (metricUnit.length > 16) return false;
-    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return false;
-    if (game === "keep_alive" && (metricType !== "time_survived" || metricKey !== "time_survived")) return false;
-    if (game !== "keep_alive" && (metricType !== "score" || metricKey !== "score")) return false;
-    return true;
+    if (typeof game !== "string" || !GAME_IDS.has(game)) return { ok: false, reason: "invalid_game_id" };
+    if (!["chill", "medium", "intense"].includes(mode)) return { ok: false, reason: "invalid_mode" };
+    if (!metricType || metricType.length > 48) return { ok: false, reason: "invalid_metric_type" };
+    if (!metricKey || metricKey.length > 48) return { ok: false, reason: "invalid_metric_key" };
+    if (!metricLabel || metricLabel.length > 64) return { ok: false, reason: "invalid_metric_label" };
+    if (metricUnit.length > 16) return { ok: false, reason: "metric_unit_too_long" };
+    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) {
+      return { ok: false, reason: "invalid_metric_value" };
+    }
+    if (game === "keep_alive" && (metricType !== "time_survived" || metricKey !== "time_survived")) {
+      return { ok: false, reason: "keep_alive_metric_mismatch" };
+    }
+    if (game !== "keep_alive" && (metricType !== "score" || metricKey !== "score")) {
+      return { ok: false, reason: "game_metric_mismatch" };
+    }
+    return { ok: true };
   }
   if (type === "brain_answer") {
-    if (typeof data.topic !== "string" || !data.topic.trim()) return false;
-    if (data.topic.length > 96) return false;
-    if (typeof data.correct !== "boolean") return false;
-    return true;
+    const topic = typeof data.topic === "string" ? data.topic.trim() : "";
+    if (!topic) return { ok: false, reason: "empty_topic" };
+    if (topic.length > 96) return { ok: false, reason: "topic_too_long" };
+    if (typeof data.correct !== "boolean") return { ok: false, reason: "correct_not_boolean" };
+    return { ok: true };
   }
-  return false;
+  return { ok: false, reason: "invalid_type" };
 }
 
 export async function POST(request) {
@@ -80,8 +87,13 @@ export async function POST(request) {
     if (type !== "game_played" && type !== "brain_answer") {
       return NextResponse.json({ ok: false, error: "invalid_type" }, { status: 400 });
     }
-    if (!isValidEventPayload(type, data)) {
-      return NextResponse.json({ ok: false, error: "invalid_payload", type }, { status: 400 });
+    const payloadCheck = validateEventPayload(type, data);
+    if (!payloadCheck.ok) {
+      console.warn("[api/events] invalid_payload", { type, reason: payloadCheck.reason });
+      return NextResponse.json(
+        { ok: false, error: "invalid_payload", type, reason: payloadCheck.reason },
+        { status: 400 }
+      );
     }
     let occurredAt = typeof ev?.occurred_at === "string" ? ev.occurred_at : null;
     if (occurredAt) {

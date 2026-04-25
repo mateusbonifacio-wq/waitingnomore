@@ -141,14 +141,14 @@ function handleWebSettingsMessage(message, sendResponse) {
 
 /**
  * @param {unknown} ev
- * @returns {{ id: string, type: string, data: object, occurred_at: string } | null}
+ * @returns {{ ok: true, event: { id: string, type: string, data: object, occurred_at: string } } | { ok: false, reason: string }}
  */
-function sanitizeOutboundEvent(ev) {
-  if (!ev || typeof ev !== "object") return null;
+function validateOutboundEvent(ev) {
+  if (!ev || typeof ev !== "object") return { ok: false, reason: "not_an_object" };
   const type = ev.type;
-  if (type !== "game_played" && type !== "brain_answer") return null;
+  if (type !== "game_played" && type !== "brain_answer") return { ok: false, reason: "invalid_type" };
   const data = ev.data;
-  if (!data || typeof data !== "object") return null;
+  if (!data || typeof data !== "object") return { ok: false, reason: "missing_data" };
   if (type === "game_played") {
     const mode = typeof data.mode === "string" ? data.mode : "";
     const metricType = typeof data.metric_type === "string" ? data.metric_type : "";
@@ -156,21 +156,31 @@ function sanitizeOutboundEvent(ev) {
     const metricLabel = typeof data.metric_label === "string" ? data.metric_label : "";
     const metricUnit = typeof data.metric_unit === "string" ? data.metric_unit : "";
     const metricValue = Number(data.metric_value);
-    if (!MICRO_GAME_IDS.has(data.game)) return null;
-    if (!["chill", "medium", "intense"].includes(mode)) return null;
-    if (!metricType || metricType.length > 48) return null;
-    if (!metricKey || metricKey.length > 48) return null;
-    if (!metricLabel || metricLabel.length > 64) return null;
-    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) return null;
-    if (metricUnit && metricUnit.length > 16) return null;
+    if (typeof data.game !== "string" || !MICRO_GAME_IDS.has(data.game)) return { ok: false, reason: "invalid_game_id" };
+    if (!["chill", "medium", "intense"].includes(mode)) return { ok: false, reason: "invalid_mode" };
+    if (!metricType || metricType.length > 48) return { ok: false, reason: "invalid_metric_type" };
+    if (!metricKey || metricKey.length > 48) return { ok: false, reason: "invalid_metric_key" };
+    if (!metricLabel || metricLabel.length > 64) return { ok: false, reason: "invalid_metric_label" };
+    if (!Number.isFinite(metricValue) || metricValue < 0 || metricValue > 500000) {
+      return { ok: false, reason: "invalid_metric_value" };
+    }
+    if (metricUnit.length > 16) return { ok: false, reason: "metric_unit_too_long" };
+    if (data.game === "keep_alive" && (metricType !== "time_survived" || metricKey !== "time_survived")) {
+      return { ok: false, reason: "keep_alive_metric_mismatch" };
+    }
+    if (data.game !== "keep_alive" && (metricType !== "score" || metricKey !== "score")) {
+      return { ok: false, reason: "game_metric_mismatch" };
+    }
   } else {
     const topic = typeof data.topic === "string" ? data.topic.trim() : "";
-    if (!topic || topic.length > 64 || typeof data.correct !== "boolean") return null;
+    if (!topic || topic.length > 96 || typeof data.correct !== "boolean") {
+      return { ok: false, reason: "invalid_brain_answer_payload" };
+    }
   }
   const id = typeof ev.id === "string" && ev.id ? ev.id : `kce_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const occurred_at =
     typeof ev.occurred_at === "string" && ev.occurred_at ? ev.occurred_at : new Date().toISOString();
-  return { id, type, data, occurred_at };
+  return { ok: true, event: { id, type, data, occurred_at } };
 }
 
 function isAllowedKeelApiOrigin(urlStr) {
@@ -189,6 +199,7 @@ function flushKeelOutboundQueue() {
   return new Promise((resolve) => {
     chrome.storage.local.get([KEEL_OUTBOUND_EVENTS_KEY, KEEL_API_AUTH_KEY], (r) => {
       if (chrome.runtime.lastError) {
+        console.error("[keel events] storage get failed", chrome.runtime.lastError.message);
         resolve({ ok: false, reason: chrome.runtime.lastError.message });
         return;
       }
@@ -196,13 +207,24 @@ function flushKeelOutboundQueue() {
       let queue = r[KEEL_OUTBOUND_EVENTS_KEY];
       if (!Array.isArray(queue)) queue = [];
       if (!auth || typeof auth !== "object" || !auth.accessToken || !auth.apiOrigin) {
-        console.warn("[keel events] flush skipped: no auth in extension storage");
-        resolve({ ok: false, reason: "no_auth" });
+        if (queue.length > 0) {
+          console.error(
+            "[keel events] flush blocked: no Keel session in extension storage (open Keel web signed in to sync auth). Queued events:",
+            queue.length
+          );
+        } else {
+          console.warn("[keel events] flush skipped: no auth in extension storage");
+        }
+        resolve({ ok: false, reason: "no_auth", queued: queue.length });
         return;
       }
       if (!isAllowedKeelApiOrigin(auth.apiOrigin)) {
-        console.warn("[keel events] flush skipped: invalid api origin", auth.apiOrigin);
-        resolve({ ok: false, reason: "bad_origin" });
+        if (queue.length > 0) {
+          console.error("[keel events] flush blocked: disallowed api origin", auth.apiOrigin, "queued:", queue.length);
+        } else {
+          console.warn("[keel events] flush skipped: invalid api origin", auth.apiOrigin);
+        }
+        resolve({ ok: false, reason: "bad_origin", queued: queue.length });
         return;
       }
       if (queue.length === 0) {
@@ -235,8 +257,8 @@ function flushKeelOutboundQueue() {
           }
           if (!res.ok) {
             const t = await res.text();
-            console.warn("[keel events] api insert failed", { status: res.status, body: t.slice(0, 200) });
-            return { ok: false, reason: `http_${res.status}`, detail: t.slice(0, 200) };
+            console.error("[keel events] api insert failed", { status: res.status, body: t.slice(0, 400) });
+            return { ok: false, reason: `http_${res.status}`, detail: t.slice(0, 400) };
           }
           const remaining = queue.slice(batch.length);
           await new Promise((r2) => {
@@ -245,7 +267,10 @@ function flushKeelOutboundQueue() {
           return { ok: true, sent: batch.length };
         })
         .then(resolve)
-        .catch((e) => resolve({ ok: false, reason: "network", detail: String(e && e.message ? e.message : e) }));
+        .catch((e) => {
+          console.error("[keel events] fetch network error", e);
+          return resolve({ ok: false, reason: "network", detail: String(e && e.message ? e.message : e) });
+        });
     });
   });
 }
@@ -255,11 +280,13 @@ function flushKeelOutboundQueue() {
  * @param {(r: unknown) => void} sendResponse
  */
 function pushKeelEventAndFlush(event, sendResponse) {
-  const sanitized = sanitizeOutboundEvent(event);
-  if (!sanitized) {
-    sendResponse({ ok: false, error: "bad_event" });
+  const validated = validateOutboundEvent(event);
+  if (!validated.ok) {
+    console.error("[keel events] outbound event rejected (not queued)", validated.reason, event);
+    sendResponse({ ok: false, error: "bad_event", reason: validated.reason });
     return;
   }
+  const sanitized = validated.event;
   chrome.storage.local.get([KEEL_OUTBOUND_EVENTS_KEY], (r) => {
     if (chrome.runtime.lastError) {
       sendResponse({ ok: false, error: chrome.runtime.lastError.message });
@@ -276,7 +303,9 @@ function pushKeelEventAndFlush(event, sendResponse) {
       }
       flushKeelOutboundQueue().then((res) => {
         if (!res?.ok) {
-          console.warn("[keel events] flush result", res);
+          console.error("[keel events] flush failed after enqueue", res);
+        } else if (res.sent > 0) {
+          console.info("[keel events] flush ok", { sent: res.sent });
         }
         sendResponse(res);
       });
@@ -341,6 +370,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
     pushKeelEventAndFlush(message.event, sendResponse);
+    return true;
+  }
+  if (t === "wnm-flush-keel-events") {
+    if (!sender || sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, error: "invalid_sender" });
+      return false;
+    }
+    flushKeelOutboundQueue().then(sendResponse);
     return true;
   }
   if (t === "wnm-push-keel-api-auth") {

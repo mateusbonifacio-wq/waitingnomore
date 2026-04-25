@@ -112,22 +112,17 @@
           if (wasNear && !isNear && !inContact) {
             ctx.runtimeStats.reactionMsSamples.push(95);
             ctx.runtimeStats.hits += 1;
-            ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs: 95 });
             ctx.updateHud();
             layerEl.classList.remove("keep-alive-orbit--safe");
-            // Reflow to replay brief feedback animation.
-            void layerEl.offsetWidth;
-            layerEl.classList.add("keep-alive-orbit--safe");
+            // Replay feedback animation without forced synchronous layout.
+            window.requestAnimationFrame(() => {
+              if (!destroyed && layerEl) layerEl.classList.add("keep-alive-orbit--safe");
+            });
           }
 
           if (isCollision && !inContact) {
             inContact = true;
             ctx.runtimeStats.playMisses += 1;
-            ctx.trackEvent("play_miss", {
-              microGame: ctx.gameId,
-              totalMisses: ctx.runtimeStats.playMisses,
-              totalHits: ctx.runtimeStats.hits
-            });
             ctx.updateHud();
             resetRound();
           }
@@ -144,8 +139,9 @@
           lastTapMs = now;
           dir *= -1;
           layerEl.classList.remove("keep-alive-orbit--flip");
-          void layerEl.offsetWidth;
-          layerEl.classList.add("keep-alive-orbit--flip");
+          window.requestAnimationFrame(() => {
+            if (!destroyed && layerEl) layerEl.classList.add("keep-alive-orbit--flip");
+          });
         };
 
         layerEl.addEventListener("pointerdown", onPointerDown, { passive: true });

@@ -1,0 +1,9 @@
+{
+  "name": "browser_navigate_back",
+  "description": "Go back to the previous page",
+  "arguments": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}

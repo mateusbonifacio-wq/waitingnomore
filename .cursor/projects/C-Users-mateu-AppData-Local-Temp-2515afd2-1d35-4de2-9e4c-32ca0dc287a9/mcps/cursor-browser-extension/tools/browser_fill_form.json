@@ -1,0 +1,52 @@
+{
+  "name": "browser_fill_form",
+  "description": "Fill multiple form fields",
+  "arguments": {
+    "type": "object",
+    "properties": {
+      "fields": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Description of the field"
+            },
+            "ref": {
+              "type": "string",
+              "description": "CSS selector for the field"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "textbox",
+                "checkbox",
+                "radio",
+                "combobox",
+                "slider"
+              ],
+              "description": "Type of the field"
+            },
+            "value": {
+              "type": "string",
+              "description": "Value to fill in the field. If the field is a checkbox, the value should be `true` or `false`. If the field is a combobox, the value should be the text of the option."
+            }
+          },
+          "required": [
+            "name",
+            "ref",
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "description": "Fields to fill in"
+      }
+    },
+    "required": [
+      "fields"
+    ],
+    "additionalProperties": false
+  }
+}

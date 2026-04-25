@@ -32,10 +32,48 @@
         color: var(--muted);
         font-size: 12px;
       }
+      .open-keel-wrap {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      #open-keel {
+        width: 100%;
+        margin: 0;
+        padding: 10px 12px;
+        border: none;
+        border-radius: 8px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #6366f1;
+        color: #fafafa;
+      }
+      #open-keel:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      #open-keel-hint {
+        margin-top: 8px;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      #open-keel-no-url {
+        margin-top: 8px;
+        font-size: 11px;
+        color: #f87171;
+      }
     </style>
   </head>
   <body>
     <h1>Keel</h1>
     <p>Before you drift.</p>
+    <div class="open-keel-wrap">
+      <button type="button" id="open-keel">Open Keel</button>
+      <p id="open-keel-hint"></p>
+      <p id="open-keel-no-url" hidden>No Keel URL configured.</p>
+    </div>
+    <script src="popup.js"></script>
   </body>
 </html>

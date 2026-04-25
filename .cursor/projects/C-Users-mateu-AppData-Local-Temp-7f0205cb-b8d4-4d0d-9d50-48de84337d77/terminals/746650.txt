@@ -1,0 +1,50 @@
+---
+pid: 46148
+cwd: "C:\\Users\\mateu"
+command: "Get-ChildItem -Name | Select-Object -First 30"
+started_at: 2026-04-15T16:55:48.571Z
+running_for_seconds: 145   
+---
+.anaconda
+.conda
+.continuum
+.cursor
+.cursor-sandbox
+.ibm_cplex_studio
+.ipynb_checkpoints
+.ipython
+.jupyter
+.matplotlib
+.ms-ad
+.sbx-denybin
+.tobii
+.vscode
+anaconda3
+Contacts
+Documents
+Downloads
+Favorites
+Links
+Modules
+Music
+node_modules
+OneDrive
+Saved Games
+Searches
+src
+validade-mvp
+Videos
+.condarc
+Get-ChildItem : Um item com a mesma chave j� foi adicionado.
+At C:\Users\mateu\AppData\Local\Temp\ps-script-09da063a-998e-43cc-a81f-a2dbe9210036.ps1:31 char:16
++     $envVars = Get-ChildItem Env: | Sort-Object Name
++                ~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Get-ChildItem], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException,Microsoft.PowerShell.Commands.GetChildItemCommand
+ 
+
+---
+exit_code: 0
+elapsed_ms: 150145
+ended_at: 2026-04-15T16:58:18.716Z
+---

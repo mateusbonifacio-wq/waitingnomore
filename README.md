@@ -24,6 +24,7 @@ Chrome extension + Next.js web companion for ChatGPT — calm, minimal, ready fo
 ## Extension
 
 - Location: `extension/`
+- **Open Keel from the toolbar:** the extension popup includes **Open Keel** / **Open Keel to sync login** (when auth is missing or near expiry). It opens the URL from `homepage_url` in `extension/manifest.json` (set this to your production origin). If you remove `homepage_url`, the button falls back to the last synced `apiOrigin`, then to `DEFAULT_KEEL_WEB_APP_ORIGIN` in `extension/popup.js`. Align production with optional `NEXT_PUBLIC_APP_URL` in `web/.env.example`.
 - **Web ↔ extension (local / Vercel previews):** `webBridge.js` is injected on the same URL patterns as `externally_connectable` (localhost, `*.vercel.app`, etc.). The web app talks to Keel via `postMessage` — testers do **not** need `NEXT_PUBLIC_EXTENSION_ID`.
 - **Custom apex domain:** add your `https://your.domain/*` to both `content_scripts` (webBridge entry) and `externally_connectable` in `extension/manifest.json`, or set `NEXT_PUBLIC_EXTENSION_ID` once for the sendMessage fallback.
 - **Chrome Web Store:** the published extension has a stable ID; you can ship that ID in production env if you prefer, but the bridge still covers listed origins.

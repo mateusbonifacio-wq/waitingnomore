@@ -1,0 +1,9 @@
+---
+pid: 11816
+cwd: |
+  C:\Users\mateu
+---
+Microsoft Windows [Version 10.0.26200.8246]
+(c) Microsoft Corporation. Todos os direitos reservados.
+
+C:\Users\mateu>

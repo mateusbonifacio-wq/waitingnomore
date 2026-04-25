@@ -1,0 +1,9 @@
+{
+  "name": "browser_snapshot",
+  "description": "Capture accessibility snapshot of the current page. Use this to get element refs for interactions, not browser_take_screenshot.",
+  "arguments": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "browser_handle_dialog",
+  "description": "Handle a dialog (alert, confirm, prompt)",
+  "arguments": {
+    "type": "object",
+    "properties": {
+      "accept": {
+        "type": "boolean",
+        "description": "Whether to accept the dialog."
+      },
+      "promptText": {
+        "type": "string",
+        "description": "The text of the prompt in case of a prompt dialog."
+      }
+    },
+    "required": [
+      "accept"
+    ],
+    "additionalProperties": false
+  }
+}

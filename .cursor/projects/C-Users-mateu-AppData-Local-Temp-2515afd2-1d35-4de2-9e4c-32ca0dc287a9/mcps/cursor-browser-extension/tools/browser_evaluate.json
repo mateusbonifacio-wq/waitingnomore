@@ -1,0 +1,25 @@
+{
+  "name": "browser_evaluate",
+  "description": "Evaluate JavaScript expression on page or element",
+  "arguments": {
+    "type": "object",
+    "properties": {
+      "function": {
+        "type": "string",
+        "description": "() => { /* code */ } or (element) => { /* code */ } when element/ref is provided"
+      },
+      "element": {
+        "type": "string",
+        "description": "Description of the element, if evaluating on an element"
+      },
+      "ref": {
+        "type": "string",
+        "description": "CSS selector to find element, if evaluating on an element"
+      }
+    },
+    "required": [
+      "function"
+    ],
+    "additionalProperties": false
+  }
+}

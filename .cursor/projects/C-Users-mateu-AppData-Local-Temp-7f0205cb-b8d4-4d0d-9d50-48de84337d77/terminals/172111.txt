@@ -1,0 +1,57 @@
+---
+pid: 22716
+cwd: "C:\\Users\\mateu\\web"
+command: "cd C:\\Users\\mateu\\web; npm install; npm run build"
+started_at: 2026-04-15T22:47:42.410Z
+running_for_seconds: 125   
+---
+npm warn deprecated next@14.2.18: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.
+
+added 21 packages, and audited 22 packages in 1m
+
+3 packages are looking for funding
+  run `npm fund` for details
+
+1 critical severity vulnerability
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+> idle-time-web@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.18
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/6) ...
+   Generating static pages (1/6) 
+   Generating static pages (2/6) 
+   Generating static pages (4/6) 
+ ✓ Generating static pages (6/6)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    174 B          94.1 kB
+├ ○ /_not-found                          873 B            88 kB
+├ ○ /dashboard                           138 B          87.2 kB
+└ ○ /settings                            765 B          87.9 kB
++ First Load JS shared by all            87.1 kB
+  ├ chunks/117-e881abe2c0a0c050.js       31.6 kB
+  ├ chunks/fd9d1056-7d9b70e9456442b8.js  53.6 kB
+  └ other shared chunks (total)          1.86 kB
+
+
+○  (Static)  prerendered as static content
+
+
+---
+exit_code: 0
+elapsed_ms: 128327
+ended_at: 2026-04-15T22:49:50.737Z
+---

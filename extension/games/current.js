@@ -65,14 +65,13 @@
       if (ctx.isCardHidden()) return;
 
       window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (!ctx.isPlayMode() || !area.isConnected) return;
-          if (!ctx.isGenerating()) return;
-          if (ctx.isCardHidden()) return;
+        if (!ctx.isPlayMode() || !area.isConnected) return;
+        if (!ctx.isGenerating()) return;
+        if (ctx.isCardHidden()) return;
 
-          voidLocal("spawnCommit");
-          const roundId = ++playRoundSeq;
-          playArmedRoundId = roundId;
+        voidLocal("spawnCommit");
+        const roundId = ++playRoundSeq;
+        playArmedRoundId = roundId;
 
           const target = document.createElement("button");
           target.type = "button";
@@ -107,18 +106,13 @@
             playActiveTargetEl = null;
             target.remove();
             ctx.runtimeStats.playMisses += 1;
-            ctx.trackEvent("play_miss", {
-              microGame: ctx.gameId,
-              totalMisses: ctx.runtimeStats.playMisses,
-              totalHits: ctx.runtimeStats.hits
-            });
             ctx.updateHud();
             scheduleSpawn(nextGapMs());
           }, windowMs);
 
-          target.addEventListener(
-            "click",
-            (event) => {
+        target.addEventListener(
+          "click",
+          (event) => {
               event.preventDefault();
               event.stopPropagation();
               if (playMoveTimer) {
@@ -131,7 +125,6 @@
               const reactionMs = Math.round(performance.now() - spawnAt);
               ctx.runtimeStats.reactionMsSamples.push(reactionMs);
               ctx.runtimeStats.hits += 1;
-              ctx.trackEvent("play_hit", { microGame: ctx.gameId, totalHits: ctx.runtimeStats.hits, reactionMs });
               target.classList.remove("play-target--live");
               target.classList.add("play-target--hit");
               showReactionPop(event.clientX, event.clientY, reactionMs);
@@ -140,10 +133,9 @@
               }, 140);
               ctx.updateHud();
               scheduleSpawn(nextGapMs());
-            },
-            { passive: false }
-          );
-        });
+          },
+          { passive: false }
+        );
       });
     }
 
