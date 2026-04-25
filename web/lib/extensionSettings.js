@@ -58,6 +58,7 @@ function bridgeCall(kind, payload = {}, timeoutMs = 3500) {
       resolve({ connected: false, reason: "no_window" });
       return;
     }
+    const targetOrigin = window.location.origin;
     const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
     let settled = false;
     const timer = setTimeout(() => {
@@ -69,6 +70,7 @@ function bridgeCall(kind, payload = {}, timeoutMs = 3500) {
 
     function onReply(event) {
       if (event.source !== window) return;
+      if (event.origin !== targetOrigin) return;
       const d = event.data;
       if (!d || d.source !== BRIDGE_EXT || d.nonce !== nonce) return;
       settled = true;
@@ -84,7 +86,7 @@ function bridgeCall(kind, payload = {}, timeoutMs = 3500) {
     }
 
     window.addEventListener("message", onReply);
-    window.postMessage({ source: BRIDGE_WEB, kind, nonce, ...payload }, "*");
+    window.postMessage({ source: BRIDGE_WEB, kind, nonce, ...payload }, targetOrigin);
   });
 }
 

@@ -77,17 +77,22 @@ function init() {
   const iconBtn = document.getElementById("open-keel-icon");
   const hint = document.getElementById("open-keel-hint");
   const noUrl = document.getElementById("open-keel-no-url");
+  const title = document.getElementById("popup-title");
+  const body = document.getElementById("popup-body");
 
   async function refresh() {
     const openUrl = await resolveKeelOpenUrl();
     const data = await chrome.storage.local.get(KEEL_API_AUTH_KEY);
     const auth = data[KEEL_API_AUTH_KEY];
-    const needSync = isAuthMissingOrExpired(auth);
+    const hasAuth = !!(auth && typeof auth === "object" && auth.accessToken && auth.apiOrigin);
+    const expired = hasAuth && isAuthMissingOrExpired(auth);
 
     if (!openUrl) {
       btn.disabled = true;
       if (iconBtn) iconBtn.disabled = true;
       btn.textContent = "Set Keel URL in manifest";
+      if (title) title.textContent = "Connect Keel";
+      if (body) body.textContent = "Set homepage_url in the extension manifest to enable web app connection.";
       hint.textContent = "Add homepage_url to manifest.json (see README).";
       noUrl.hidden = false;
       return;
@@ -96,16 +101,44 @@ function init() {
     noUrl.hidden = true;
     btn.disabled = false;
     if (iconBtn) iconBtn.disabled = false;
-    btn.textContent = needSync ? "Open Keel to sync login" : "Open Keel";
-    hint.textContent = needSync
-      ? "Opens Keel in a new tab so your session can sync to this extension."
-      : "Opens your Keel site in a new tab.";
+    if (!hasAuth) {
+      if (title) title.textContent = "Connect Keel";
+      if (body) {
+        body.textContent = "Log in once on the Keel web app to save your scores and appear on the leaderboard.";
+      }
+      btn.textContent = "Open web app";
+      hint.textContent = "Opens Keel in a new tab for login and automatic sync.";
+      return;
+    }
+
+    if (expired) {
+      if (title) title.textContent = "Reconnect Keel";
+      if (body) body.textContent = "Your session expired. Log in again to keep saving your progress.";
+      btn.textContent = "Reconnect";
+      hint.textContent = "Opens Keel in a new tab so you can log in again.";
+      return;
+    }
+
+    if (title) title.textContent = "Keel is connected";
+    if (body) body.textContent = "Your scores and Brain Mode answers will be saved.";
+    btn.textContent = "Open dashboard";
+    hint.textContent = "Opens your Keel dashboard in a new tab.";
   }
 
   btn.addEventListener("click", async () => {
     const openUrl = await resolveKeelOpenUrl();
     if (!openUrl) return;
-    openKeelTab(openUrl);
+    const data = await chrome.storage.local.get(KEEL_API_AUTH_KEY);
+    const auth = data[KEEL_API_AUTH_KEY];
+    const hasAuth = !!(auth && typeof auth === "object" && auth.accessToken && auth.apiOrigin);
+    const expired = hasAuth && isAuthMissingOrExpired(auth);
+    if (hasAuth && !expired) {
+      openKeelTab(new URL("/dashboard", openUrl).href);
+    } else if (expired) {
+      openKeelTab(new URL("/login?next=/dashboard", openUrl).href);
+    } else {
+      openKeelTab(new URL("/", openUrl).href);
+    }
     window.close();
   });
 

@@ -10,6 +10,7 @@ const MESSAGE_CLEAR_AUTH = "wnm-clear-keel-api-auth";
 
 function postToExtension(kind, payload) {
   if (typeof window === "undefined") return Promise.resolve({ ok: false, reason: "no_window" });
+  const targetOrigin = window.location.origin;
   const nonce = `${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
   return new Promise((resolve) => {
     let settled = false;
@@ -22,6 +23,7 @@ function postToExtension(kind, payload) {
 
     function onReply(event) {
       if (event.source !== window) return;
+      if (event.origin !== targetOrigin) return;
       const d = event.data;
       if (!d || d.source !== EXT || d.nonce !== nonce) return;
       settled = true;
@@ -31,7 +33,7 @@ function postToExtension(kind, payload) {
     }
 
     window.addEventListener("message", onReply);
-    window.postMessage({ source: WEB, kind, nonce, ...payload }, "*");
+    window.postMessage({ source: WEB, kind, nonce, ...payload }, targetOrigin);
   });
 }
 

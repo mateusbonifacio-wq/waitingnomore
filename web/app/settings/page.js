@@ -1,6 +1,7 @@
 import SettingsForm from "../../components/SettingsForm";
 import { getSupabaseServerClient } from "../../lib/supabase/server";
 import { normalizeEnabledGamesList, normalizeEnabledTopicsList } from "../../lib/extensionSettings";
+import Link from "next/link";
 
 export const metadata = {
   title: "Settings",
@@ -63,6 +64,9 @@ export default async function SettingsPage() {
     <main className="page">
       <h1 className="page-title">Settings</h1>
       <p className="page-sub">Keel on ChatGPT — account, overlay behavior, and micro-games.</p>
+      <p className="muted-note">
+        Privacy details: <Link href="/privacy">Privacy Policy</Link>
+      </p>
       <SettingsForm
         isAuthenticated={Boolean(user)}
         userEmail={user?.email || ""}

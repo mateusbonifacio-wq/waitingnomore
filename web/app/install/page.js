@@ -41,7 +41,7 @@ export default async function InstallPage() {
           <li>Open <code>chrome://extensions</code> and turn on Developer mode.</li>
           <li>Choose <strong>Load unpacked</strong> and select the Keel <code>extension</code> folder.</li>
           <li>Keep this site open in the <strong>same Chrome profile</strong> where you installed Keel.</li>
-          <li>Refresh this page, then use <strong>Verify</strong> below.</li>
+          <li>Log in once on this web app — Keel connects automatically.</li>
         </ol>
       </section>
 

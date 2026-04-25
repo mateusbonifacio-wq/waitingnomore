@@ -1,25 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { verifyKeelExtensionBridge } from "../lib/extensionSettings";
 
 export default function ExtensionInstallPanel({ isAuthenticated }) {
+  const [connected, setConnected] = useState(null);
   const [status, setStatus] = useState("");
   const [checking, setChecking] = useState(false);
 
-  async function verifyExtension() {
+  async function refreshBridgeStatus() {
     setChecking(true);
-    setStatus("Checking connection…");
+    setStatus("Checking extension status…");
     try {
       const result = await verifyKeelExtensionBridge();
       if (!result.ok) {
-        setStatus(`Keel was not detected in this tab. Reload the extension, refresh this page, then try again.`);
+        setConnected(false);
+        setStatus("Install the Chrome extension and log in to start saving progress.");
         return;
       }
+      setConnected(true);
       setStatus(
         result.version
-          ? `Connected (v${result.version}). Settings on this site sync to ChatGPT.`
-          : `Connected. Settings on this site sync to ChatGPT.`
+          ? `Extension connected (v${result.version}). Log in once and Keel will sync automatically.`
+          : "Extension connected. Log in once and Keel will sync automatically."
       );
       if (isAuthenticated) {
         await fetch("/api/extension-install", {
@@ -35,14 +38,21 @@ export default function ExtensionInstallPanel({ isAuthenticated }) {
     }
   }
 
+  useEffect(() => {
+    void refreshBridgeStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
   return (
     <section className="settings-section">
-      <h2>Verify</h2>
+      <h2>Extension status</h2>
       <p className="muted-note">
-        After loading the unpacked extension in Chrome, confirm the bridge from this site to Keel.
+        Log in once and Keel will connect automatically.
       </p>
-      <button type="button" className="btn btn-primary" onClick={verifyExtension} disabled={checking}>
-        {checking ? "Checking…" : "Verify"}
+      {connected === true ? <p className="muted-note">Extension connected.</p> : null}
+      {connected === false ? <p className="muted-note">Install the Chrome extension and log in to start saving progress.</p> : null}
+      <button type="button" className="btn btn-ghost" onClick={refreshBridgeStatus} disabled={checking}>
+        {checking ? "Checking…" : "Sync again"}
       </button>
       {status ? <p className="muted-note">{status}</p> : null}
     </section>

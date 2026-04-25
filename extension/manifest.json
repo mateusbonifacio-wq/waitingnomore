@@ -14,12 +14,7 @@
   },
   "externally_connectable": {
     "matches": [
-      "http://localhost:3000/*",
-      "http://localhost:*/*",
-      "https://localhost:*/*",
-      "http://127.0.0.1:*/*",
-      "https://127.0.0.1:*/*",
-      "https://*.vercel.app/*"
+      "https://waitingnomore.vercel.app/*"
     ]
   },
   "options_ui": {
@@ -81,12 +76,7 @@
     },
     {
       "matches": [
-        "http://localhost:3000/*",
-        "http://localhost:*/*",
-        "https://localhost:*/*",
-        "http://127.0.0.1:*/*",
-        "https://127.0.0.1:*/*",
-        "https://*.vercel.app/*"
+        "https://waitingnomore.vercel.app/*"
       ],
       "js": ["webBridge.js"],
       "run_at": "document_idle"

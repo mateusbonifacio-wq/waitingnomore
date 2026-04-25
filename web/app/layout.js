@@ -1,6 +1,7 @@
 import SiteNav from "../components/SiteNav";
 import ThemeBootstrap from "../components/ThemeBootstrap";
 import ExtensionAuthSync from "../components/ExtensionAuthSync";
+import Link from "next/link";
 import "./globals.css";
 
 /** Auth UI reads cookies; avoid serving a cached header as logged-out after sign-in. */
@@ -23,7 +24,8 @@ export default function RootLayout({ children }) {
         <SiteNav />
         {children}
         <footer className="site-footer">
-          Keel — Before you drift. Deploy the <code>web</code> folder on Vercel.
+          Keel — Before you drift. Deploy the <code>web</code> folder on Vercel.{" "}
+          <Link href="/privacy">Privacy Policy</Link>
         </footer>
       </body>
     </html>

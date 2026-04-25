@@ -5,14 +5,16 @@
 (() => {
   const WEB = "keel-web";
   const EXT = "keel-extension";
+  const allowedOrigin = window.location.origin;
 
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;
+    if (event.origin !== allowedOrigin) return;
     const msg = event.data;
     if (!msg || msg.source !== WEB || typeof msg.nonce !== "string" || typeof msg.kind !== "string") return;
 
     function reply(payload) {
-      window.postMessage({ source: EXT, nonce: msg.nonce, ...payload }, "*");
+      window.postMessage({ source: EXT, nonce: msg.nonce, ...payload }, allowedOrigin);
     }
 
     if (msg.kind === "verify") {
