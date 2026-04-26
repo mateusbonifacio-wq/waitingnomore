@@ -50,8 +50,6 @@ function resolveDisplayName(profile) {
   if (displayName) return displayName;
   const username = typeof profile?.username === "string" ? profile.username.trim() : "";
   if (username) return username;
-  const emailPrefix = typeof profile?.email_prefix === "string" ? profile.email_prefix.trim() : "";
-  if (emailPrefix) return emailPrefix;
   return "Anonymous";
 }
 

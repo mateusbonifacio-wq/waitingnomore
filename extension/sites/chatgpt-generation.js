@@ -6,6 +6,20 @@
   /** How long instant "idle" must hold before we report end (avoids false ends on stream gaps / DOM swaps). */
   const STABLE_END_MS = 2000;
   const NS = "[Keel ChatGPT]";
+  const DEBUG_ENABLED = (() => {
+    try {
+      return globalThis?.localStorage?.keelDebug === "true";
+    } catch (_e) {
+      return false;
+    }
+  })();
+
+  function dlog(...args) {
+    if (!DEBUG_ENABLED) return;
+    if (typeof console === "object" && typeof console.log === "function") {
+      console.log(...args);
+    }
+  }
 
   function isElementInteractable(el) {
     if (!el || !(el instanceof Element)) return false;
@@ -82,18 +96,12 @@
   function detectGeneratingStateInner() {
     const sig = snapshotSignals();
     const snap = sig.generating;
-    if (typeof console === "object" && typeof console.log === "function") {
-      console.log(`${NS} generating signal:`, sig);
-    }
+    dlog(`${NS} generating signal:`, sig);
     if (snap) {
-      if (wasSnapTrue === false && typeof console === "object" && typeof console.log === "function") {
-        console.log(`${NS} start detected`);
-      }
+      if (wasSnapTrue === false) dlog(`${NS} start detected`);
       wasSnapTrue = true;
       inGenerationCycle = true;
-      if (pendingEndSince != null && typeof console === "object" && typeof console.log === "function") {
-        console.log(`${NS} end cancelled`);
-      }
+      if (pendingEndSince != null) dlog(`${NS} end cancelled`);
       pendingEndSince = null;
       return true;
     }
@@ -105,12 +113,10 @@
 
     if (pendingEndSince == null) {
       pendingEndSince = Date.now();
-      if (typeof console === "object" && typeof console.log === "function") {
-        console.log(`${NS} possible end detected because:`, {
-          reason: "all generating signals are false",
-          signals: sig
-        });
-      }
+      dlog(`${NS} possible end detected because:`, {
+        reason: "all generating signals are false",
+        signals: sig
+      });
     }
 
     const held = Date.now() - pendingEndSince;
@@ -118,13 +124,11 @@
       return true;
     }
 
-    if (typeof console === "object" && typeof console.log === "function") {
-      console.log(`${NS} end confirmed because:`, {
-        reason: "non-generating signal remained stable through debounce",
-        heldMs: Math.round(held),
-        requiredMs: STABLE_END_MS
-      });
-    }
+    dlog(`${NS} end confirmed because:`, {
+      reason: "non-generating signal remained stable through debounce",
+      heldMs: Math.round(held),
+      requiredMs: STABLE_END_MS
+    });
     inGenerationCycle = false;
     pendingEndSince = null;
     wasSnapTrue = false;

@@ -16,8 +16,25 @@
   }
 
   console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded [${gen.siteId || "unknown"}] (frame: ${self === top ? "top" : "child"})`);
+  const CHATGPT_DEBUG_ENABLED =
+    gen.siteId === "chatgpt" &&
+    (() => {
+      try {
+        return globalThis?.localStorage?.keelDebug === "true";
+      } catch (_e) {
+        return false;
+      }
+    })();
+
+  function chatgptDebugLog(...args) {
+    if (!CHATGPT_DEBUG_ENABLED) return;
+    if (typeof console === "object" && typeof console.log === "function") {
+      console.log(...args);
+    }
+  }
+
   if (gen.siteId === "chatgpt") {
-    console.log("[Keel ChatGPT] version:", IDLE_EXTENSION_VERSION);
+    chatgptDebugLog("[Keel ChatGPT] version:", IDLE_EXTENSION_VERSION);
   }
 
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
@@ -1073,9 +1090,7 @@
 
   function renderSessionSummary(summary) {
     if (!modeBody || !card) return;
-    if (gen.siteId === "chatgpt") {
-      console.log("[Keel ChatGPT] results shown", { mode: summary?.sessionMode || currentMode });
-    }
+    chatgptDebugLog("[Keel ChatGPT] results shown", { mode: summary?.sessionMode || currentMode });
     detachSummaryDismissListener();
     card.classList.remove("idle-time-card--summary-exit");
     card.classList.add("idle-time-card--summary");
@@ -1164,9 +1179,7 @@
   function setOverlayVisibility(visible) {
     if (!card) return;
     if (!visible) {
-      if (gen.siteId === "chatgpt") {
-        console.log("[Keel ChatGPT] overlay unmounted");
-      }
+      chatgptDebugLog("[Keel ChatGPT] overlay unmounted");
       card.classList.add("hidden");
       clearSummaryUiState();
       return;
@@ -1296,9 +1309,7 @@
       generationEndFallbackTimer = null;
       if (!isGenerating && card && !card.classList.contains("hidden")) {
         console.warn("Keel: forcing overlay hide via fallback after generation end");
-        if (gen && gen.siteId === "chatgpt") {
-          console.log("[Keel ChatGPT] forced end reason:", "generation-end fallback timer");
-        }
+        chatgptDebugLog("[Keel ChatGPT] forced end reason:", "generation-end fallback timer");
         clearModeTimers();
         setOverlayVisibility(false);
       }
@@ -1402,9 +1413,7 @@
       pendingTickTimeout = null;
     }
     if (!runtimeStats.sessionActive) return;
-    if (gen.siteId === "chatgpt") {
-      console.log("[Keel ChatGPT] forced end reason:", "page unload / route change");
-    }
+    chatgptDebugLog("[Keel ChatGPT] forced end reason:", "page unload / route change");
     clearModeTimers();
     finishSession(false);
     setOverlayVisibility(false);

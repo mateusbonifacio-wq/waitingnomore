@@ -113,7 +113,8 @@ alter table public.extension_installs enable row level security;
 alter table public.idle_sessions enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
-create policy "profiles_select_own" on public.profiles for select using (auth.uid() = user_id);
+drop policy if exists "profiles_select_authenticated" on public.profiles;
+create policy "profiles_select_authenticated" on public.profiles for select using (auth.role() = 'authenticated');
 drop policy if exists "profiles_upsert_own" on public.profiles;
 create policy "profiles_upsert_own" on public.profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
