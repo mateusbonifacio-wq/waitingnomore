@@ -1,6 +1,6 @@
 (() => {
   /** Bump this string before each test build — also check DevTools console + overlay label. */
-  const IDLE_EXTENSION_VERSION = "1.0.39";
+  const IDLE_EXTENSION_VERSION = "1.0.40";
 
   // Context export feature is currently paused
   // Reason: unreliable results and not part of core product
@@ -16,6 +16,9 @@
   }
 
   console.log(`Keel v${IDLE_EXTENSION_VERSION} loaded [${gen.siteId || "unknown"}] (frame: ${self === top ? "top" : "child"})`);
+  if (gen.siteId === "chatgpt") {
+    console.log("[Keel ChatGPT] version:", IDLE_EXTENSION_VERSION);
+  }
 
   const MODES = { PLAY: "play", BRAIN: "brain", FOCUS: "focus" };
   const SUMMARY_MIN_MS = 2800;
@@ -1070,6 +1073,9 @@
 
   function renderSessionSummary(summary) {
     if (!modeBody || !card) return;
+    if (gen.siteId === "chatgpt") {
+      console.log("[Keel ChatGPT] results shown", { mode: summary?.sessionMode || currentMode });
+    }
     detachSummaryDismissListener();
     card.classList.remove("idle-time-card--summary-exit");
     card.classList.add("idle-time-card--summary");
@@ -1158,6 +1164,9 @@
   function setOverlayVisibility(visible) {
     if (!card) return;
     if (!visible) {
+      if (gen.siteId === "chatgpt") {
+        console.log("[Keel ChatGPT] overlay unmounted");
+      }
       card.classList.add("hidden");
       clearSummaryUiState();
       return;
@@ -1288,7 +1297,7 @@
       if (!isGenerating && card && !card.classList.contains("hidden")) {
         console.warn("Keel: forcing overlay hide via fallback after generation end");
         if (gen && gen.siteId === "chatgpt") {
-          console.log("[Keel ChatGPT] forced cleanup");
+          console.log("[Keel ChatGPT] forced end reason:", "generation-end fallback timer");
         }
         clearModeTimers();
         setOverlayVisibility(false);
@@ -1393,6 +1402,9 @@
       pendingTickTimeout = null;
     }
     if (!runtimeStats.sessionActive) return;
+    if (gen.siteId === "chatgpt") {
+      console.log("[Keel ChatGPT] forced end reason:", "page unload / route change");
+    }
     clearModeTimers();
     finishSession(false);
     setOverlayVisibility(false);

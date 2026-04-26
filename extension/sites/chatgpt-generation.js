@@ -5,6 +5,7 @@
 (() => {
   /** How long instant "idle" must hold before we report end (avoids false ends on stream gaps / DOM swaps). */
   const STABLE_END_MS = 2000;
+  const NS = "[Keel ChatGPT]";
 
   function isElementInteractable(el) {
     if (!el || !(el instanceof Element)) return false;
@@ -56,12 +57,13 @@
     return false;
   }
 
-  function snapshotIsGenerating() {
-    if (hasVisibleStopControl()) return true;
-    if (hasStreamingDomSignals()) return true;
+  function snapshotSignals() {
+    const visibleStop = hasVisibleStopControl();
+    const streamingDom = hasStreamingDomSignals();
     const stopGen = document.querySelector("[aria-label='Stop generating']");
-    if (stopGen && (isElementInteractable(stopGen) || isStopLooselyInLayout(stopGen))) return true;
-    return false;
+    const stopAria = !!(stopGen && (isElementInteractable(stopGen) || isStopLooselyInLayout(stopGen)));
+    const generating = visibleStop || streamingDom || stopAria;
+    return { generating, visibleStop, streamingDom, stopAria };
   }
 
   let inGenerationCycle = false;
@@ -78,15 +80,19 @@
   }
 
   function detectGeneratingStateInner() {
-    const snap = snapshotIsGenerating();
+    const sig = snapshotSignals();
+    const snap = sig.generating;
+    if (typeof console === "object" && typeof console.log === "function") {
+      console.log(`${NS} generating signal:`, sig);
+    }
     if (snap) {
       if (wasSnapTrue === false && typeof console === "object" && typeof console.log === "function") {
-        console.log("[Keel ChatGPT] start");
+        console.log(`${NS} start detected`);
       }
       wasSnapTrue = true;
       inGenerationCycle = true;
       if (pendingEndSince != null && typeof console === "object" && typeof console.log === "function") {
-        console.log("[Keel ChatGPT] end cancelled");
+        console.log(`${NS} end cancelled`);
       }
       pendingEndSince = null;
       return true;
@@ -100,7 +106,10 @@
     if (pendingEndSince == null) {
       pendingEndSince = Date.now();
       if (typeof console === "object" && typeof console.log === "function") {
-        console.log("[Keel ChatGPT] possible end");
+        console.log(`${NS} possible end detected because:`, {
+          reason: "all generating signals are false",
+          signals: sig
+        });
       }
     }
 
@@ -110,7 +119,11 @@
     }
 
     if (typeof console === "object" && typeof console.log === "function") {
-      console.log("[Keel ChatGPT] stable end");
+      console.log(`${NS} end confirmed because:`, {
+        reason: "non-generating signal remained stable through debounce",
+        heldMs: Math.round(held),
+        requiredMs: STABLE_END_MS
+      });
     }
     inGenerationCycle = false;
     pendingEndSince = null;
